@@ -221,19 +221,22 @@ void ios_revive_node(glp_tree *tree, int p)
          correct, so there is nothing more to do */
       if (node == root) goto done;
       /* may need to restore root subproblem */
-      if (tree->frozen != NULL)
+      if (tree->frozen != NULL && tree->frozen != node->up)
          restore_root(tree);
-      /* build path from the root to the current node */
+      /* build path to the current node */
       node->temp = NULL;
-      for (node = node; node != NULL; node = node->up)
-      {  if (node->up == NULL)
-            xassert(node == root);
-         else
-            node->up->temp = node;
+      if (tree->frozen == NULL)
+      {  for (node = node; node != NULL; node = node->up)
+         {  if (node->up == NULL)
+               xassert(node == root);
+            else
+               node->up->temp = node;
+         }
+         node = root;
       }
-      /* go down from the root to the current node and make necessary
-         changes to restore components of the current subproblem */
-      for (node = root; node != NULL; node = node->temp)
+      /* go down to the current node and make necessary changes to
+         restore components of the current subproblem */
+      for (node = node; node != NULL; node = node->temp)
       {  int m = mip->m;
          int n = mip->n;
          /* if the current node is reached, the problem object at this
