@@ -111,7 +111,14 @@ struct glp_tree
       /* current subproblem and its LP relaxation */
       IOSNPD *curr;
       /* pointer to the current subproblem (which can be only active);
-         NULL means the current subproblem does not exist */
+         NULL means the current subproblem does not exist or is frozen,
+         in which case the following pointer is set */
+      IOSNPD *frozen;
+      /* pointer to the current subproblem after being frozen to split
+         freezing and restoration of the root subproblem. Can be used
+         to avoid unnecessary factorizations when the next subproblem
+         can be easily generated from the current one (typically when
+         it is a child of it); when in use curr should be NULL */
       glp_prob *mip;
       /* original problem object passed to the solver; if the current
          subproblem exists, its LP segment corresponds to LP relaxation

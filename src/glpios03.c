@@ -1522,9 +1522,9 @@ more: /* minor loop starts here */
 fath: /* the current subproblem has been fathomed */
       if (T->parm->msg_lev >= GLP_MSG_DBG)
          xprintf("Node %d fathomed\n", p);
-      /* freeze the current subproblem */
-      ios_freeze_node(T);
-      /* and prune the corresponding branch of the tree */
+      /* prune current subproblem and the corresponding branch of the
+         tree; no need for freezing, ios_delete_node() will restore
+         the root subproblem */
       ios_delete_node(T, p);
       /* if a new integer feasible solution has just been found, other
          branches may become hopeless and therefore must be pruned */

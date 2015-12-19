@@ -115,6 +115,7 @@ glp_tree *ios_create_tree(glp_prob *mip, const glp_iocp *parm)
       tree->root_stat = NULL;
       /* the current subproblem does not exist yet */
       tree->curr = NULL;
+      tree->frozen = NULL;
       tree->mip = mip;
       /*tree->solved = 0;*/
       tree->non_int = xcalloc(1+n, sizeof(char));
@@ -198,6 +199,8 @@ glp_tree *ios_create_tree(glp_prob *mip, const glp_iocp *parm)
 *  current subproblem already exists, it must be frozen before reviving
 *  another subproblem. */
 
+static void restore_root(glp_tree *tree);
+
 void ios_revive_node(glp_tree *tree, int p)
 {     glp_prob *mip = tree->mip;
       IOSNPD *node, *root;
@@ -209,17 +212,17 @@ void ios_revive_node(glp_tree *tree, int p)
       xassert(node->count == 0);
       /* the current subproblem must not exist */
       xassert(tree->curr == NULL);
-      /* the specified subproblem becomes current */
-      tree->curr = node;
       /*tree->solved = 0;*/
       /* obtain pointer to the root subproblem */
       root = tree->slot[1].node;
       xassert(root != NULL);
-      /* at this point problem object components correspond to the root
-         subproblem, so if the root subproblem should be revived, there
-         is nothing more to do */
+      /* the root subproblem will be revived only at the beginning of
+         the search, at which point the problem object components are
+         correct, so there is nothing more to do */
       if (node == root) goto done;
-      xassert(mip->m == tree->root_m);
+      /* may need to restore root subproblem */
+      if (tree->frozen != NULL)
+         restore_root(tree);
       /* build path from the root to the current node */
       node->temp = NULL;
       for (node = node; node != NULL; node = node->up)
@@ -325,7 +328,7 @@ void ios_revive_node(glp_tree *tree, int p)
 #endif
       }
       /* the specified subproblem has been revived */
-      node = tree->curr;
+      node = tree->slot[p].node;
       /* delete its bound change list */
       while (node->b_ptr != NULL)
       {  IOSBND *b;
@@ -357,7 +360,11 @@ void ios_revive_node(glp_tree *tree, int p)
          dmp_free_atom(tree->pool, r, sizeof(IOSROW));
       }
 #endif
-done: return;
+done:
+      /* the specified subproblem becomes current */
+      tree->frozen = NULL;
+      tree->curr = node;
+      return;
 }
 
 /***********************************************************************
@@ -417,7 +424,7 @@ void ios_freeze_node(glp_tree *tree)
       {  /* freeze non-root subproblem */
          int root_m = tree->root_m;
          int pred_m = tree->pred_m;
-         int i, j, k;
+         int k;
          xassert(pred_m <= m);
          /* build change lists for rows and columns which exist in the
             parent subproblem */
@@ -511,6 +518,27 @@ void ios_freeze_node(glp_tree *tree)
             xfree(ind);
             xfree(val);
          }
+      }
+      /* the current subproblem has been frozen */
+      tree->frozen = tree->curr;
+      tree->curr = NULL;
+      return;
+}
+
+static void restore_root(glp_tree *tree)
+{     glp_prob *mip = tree->mip;
+      int m = mip->m;
+      int n = mip->n;
+      IOSNPD *node;
+      /* the current subproblem must not exist */
+      xassert(tree->curr == NULL);
+      /* obtain pointer to the frozen subproblem */
+      node = tree->frozen;
+      xassert(node != NULL);
+      if (node->up != NULL)
+      {  int root_m = tree->root_m;
+         int pred_m = tree->pred_m;
+         int i, j;
          /* remove all rows missing in the root subproblem */
          if (m != root_m)
          {  int nrs, *num;
@@ -541,10 +569,11 @@ void ios_freeze_node(glp_tree *tree)
          /* (not implemented yet) */
 #endif
       }
-      /* the current subproblem has been frozen */
-      tree->curr = NULL;
+      /* the frozen pointer is cleared */
+      tree->frozen = NULL;
       return;
 }
+
 
 /***********************************************************************
 *  NAME
@@ -704,8 +733,8 @@ void ios_clone_node(glp_tree *tree, int p, int nnn, int ref[])
 *  DESCRIPTION
 *
 *  The routine ios_delete_node deletes the specified subproblem, whose
-*  reference number is p. The subproblem must be active and must be in
-*  the frozen state (i.e. it must not be the current subproblem).
+*  reference number is p. The subproblem must be active and if it is
+*  the current one, the root subproblem is restored.
 *
 *  Note that deletion is performed recursively, i.e. if a subproblem to
 *  be deleted is the only child of its parent, the parent subproblem is
@@ -719,8 +748,15 @@ void ios_delete_node(glp_tree *tree, int p)
       xassert(node != NULL);
       /* the specified subproblem must be active */
       xassert(node->count == 0);
-      /* and must be in the frozen state */
-      xassert(tree->curr != node);
+      if (tree->curr == node)
+      {  /* semi-freeze subproblem so restore_root() is called */
+         xassert(tree->frozen == NULL);
+         tree->frozen = tree->curr;
+         tree->curr = NULL;
+      }
+      /* restore root subproblem if necessary */
+      if (node == tree->frozen)
+         restore_root(tree);
       /* remove the specified subproblem from the active list, because
          it is gone from the tree */
       if (node->prev == NULL)
