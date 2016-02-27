@@ -851,6 +851,9 @@ int ios_driver(glp_tree *T)
 #else
       double ttt = T->tm_beg;
 #endif
+#if 1 /* 27/II-2016 by Chris */
+      int root_done = 0;
+#endif
 #if 0
       ((glp_iocp *)T->parm)->msg_lev = GLP_MSG_DBG;
 #endif
@@ -1014,13 +1017,21 @@ more: /* minor loop starts here */
       if (T->parm->pp_tech == GLP_PP_NONE)
          ;
       else if (T->parm->pp_tech == GLP_PP_ROOT)
+#if 0 /* 27/II-2016 by Chris */
       {  if (T->curr->level == 0)
+#else
+      {  if (!root_done)
+#endif
          {  if (ios_preprocess_node(T, 100))
                goto fath;
          }
       }
       else if (T->parm->pp_tech == GLP_PP_ALL)
+#if 0 /* 27/II-2016 by Chris */
       {  if (ios_preprocess_node(T, T->curr->level == 0 ? 100 : 10))
+#else
+      {  if (ios_preprocess_node(T, !root_done ? 100 : 10))
+#endif
             goto fath;
       }
       else
@@ -1195,7 +1206,11 @@ more: /* minor loop starts here */
          }
       }
       /* try to find solution with the feasibility pump heuristic */
+#if 0 /* 27/II-2016 by Chris */
       if (T->parm->fp_heur)
+#else
+      if (T->parm->fp_heur && !root_done)
+#endif
       {  xassert(T->reason == 0);
          T->reason = GLP_IHEUR;
          ios_feas_pump(T);
@@ -1210,7 +1225,11 @@ more: /* minor loop starts here */
       }
 #if 1 /* 25/V-2013 */
       /* try to find solution with the proximity search heuristic */
+#if 0 /* 27/II-2016 by Chris */
       if (T->parm->ps_heur)
+#else
+      if (T->parm->ps_heur && !root_done)
+#endif
       {  xassert(T->reason == 0);
          T->reason = GLP_IHEUR;
          ios_proxy_heur(T);
@@ -1265,14 +1284,22 @@ more: /* minor loop starts here */
             bad_cut = 0;
       }
       old_obj = T->curr->lp_obj;
+#if 0 /* 27/II-2016 by Chris */
       if (bad_cut == 0 || (T->curr->level == 0 && bad_cut <= 3))
+#else
+      if (bad_cut == 0 || (!root_done && bad_cut <= 3))
+#endif
 #endif
       /* try to generate generic cuts with built-in generators
          (as suggested by Prof. Fischetti et al. the built-in cuts are
          not generated at each branching node; an intense attempt of
          generating new cuts is only made at the root node, and then
          a moderate effort is spent after each backtracking step) */
+#if 0 /* 27/II-2016 by Chris */
       if (T->curr->level == 0 || pred_p == 0)
+#else
+      if (!root_done || pred_p == 0)
+#endif
       {  xassert(T->reason == 0);
          T->reason = GLP_ICUTGEN;
          generate_cuts(T);
@@ -1296,8 +1323,16 @@ more: /* minor loop starts here */
       }
       /* no cuts were generated; remove inactive cuts */
       remove_cuts(T);
+#if 0 /* 27/II-2016 by Chris */
       if (T->parm->msg_lev >= GLP_MSG_ALL && T->curr->level == 0)
+#else
+      if (T->parm->msg_lev >= GLP_MSG_ALL && !root_done)
+#endif
          display_cut_info(T);
+#if 1 /* 27/II-2016 by Chris */
+      /* the first node will not be treated as root any more */
+      if (!root_done) root_done = 1;
+#endif
       /* update history information used on pseudocost branching */
       if (T->pcost != NULL) ios_pcost_update(T);
       /* it's time to perform branching */
