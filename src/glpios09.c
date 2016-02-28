@@ -403,6 +403,8 @@ struct csa
       double *up_sum; /* double up_sum[1+n]; */
       /* up_sum[j] is the sum of per unit degradations of the objective
          over all up_cnt[j] subproblems */
+      glp_prob *work;
+      /* working problem to avoid unnecessary initializations */
 };
 
 void *ios_pcost_init(glp_tree *tree)
@@ -418,24 +420,44 @@ void *ios_pcost_init(glp_tree *tree)
       {  csa->dn_cnt[j] = csa->up_cnt[j] = 0;
          csa->dn_sum[j] = csa->up_sum[j] = 0.0;
       }
+      csa->work = NULL;
       return csa;
 }
 
-static double eval_degrad(glp_prob *P, int j, double bnd)
+static double eval_degrad(glp_tree *T, int j, double bnd)
 {     /* compute degradation of the objective on fixing x[j] at given
          value with a limited number of dual simplex iterations */
       /* this routine fixes column x[j] at specified value bnd,
          solves resulting LP, and returns a lower bound to degradation
          of the objective, degrad >= 0 */
-      glp_prob *lp;
+      struct csa *csa = T->pcost;
+      glp_prob *lp = csa->work, *P = T->mip;
       glp_smcp parm;
-      int ret;
+      int i, jjj, ret;
       double degrad;
-      /* the current basis must be optimal */
-      xassert(glp_get_status(P) == GLP_OPT);
-      /* create a copy of P */
-      lp = glp_create_prob();
-      glp_copy_prob(lp, P, 0);
+      /* prepare lp */
+      if (lp == NULL)
+      {  /* the current basis must be optimal */
+         xassert(glp_get_status(P) == GLP_OPT);
+         /* create a copy of mip */
+         lp = glp_create_prob();
+         glp_copy_prob(lp, P, 0);
+         csa->work = lp;
+      }
+      else
+      {  /* restore original values */
+         for (i = 1; i <= P->m; i++)
+         {  lp->row[i]->stat = P->row[i]->stat;
+            lp->row[i]->prim = P->row[i]->prim;
+            lp->row[i]->dual = P->row[i]->dual;
+         }
+         for (jjj = 1; jjj <= P->n; jjj++)
+         {  lp->col[jjj]->stat = P->col[jjj]->stat;
+            lp->col[jjj]->prim = P->col[jjj]->prim;
+            lp->col[jjj]->dual = P->col[jjj]->dual;
+         }
+         lp->valid = 0;
+      }
       /* fix column x[j] at specified value */
       glp_set_col_bnds(lp, j, GLP_FX, bnd, bnd);
       /* try to solve resulting LP */
@@ -478,8 +500,9 @@ static double eval_degrad(glp_prob *P, int j, double bnd)
       {  /* the simplex solver failed */
          degrad = 0.0;
       }
-      /* delete the copy of P */
-      glp_delete_prob(lp);
+      /* restore column x[j] type and bounds */
+      glp_set_col_bnds(lp, j, P->col[j]->type, P->col[j]->lb,
+         P->col[j]->ub);
       return degrad;
 }
 
@@ -550,7 +573,7 @@ static double eval_psi(glp_tree *T, int j, int brnch)
          if (csa->dn_cnt[j] == 0)
          {  /* initialize down pseudocost */
             beta = T->mip->col[j]->prim;
-            degrad = eval_degrad(T->mip, j, floor(beta));
+            degrad = eval_degrad(T, j, floor(beta));
             if (degrad == DBL_MAX)
             {  psi = DBL_MAX;
                goto done;
@@ -565,7 +588,7 @@ static double eval_psi(glp_tree *T, int j, int brnch)
          if (csa->up_cnt[j] == 0)
          {  /* initialize up pseudocost */
             beta = T->mip->col[j]->prim;
-            degrad = eval_degrad(T->mip, j, ceil(beta));
+            degrad = eval_degrad(T, j, ceil(beta));
             if (degrad == DBL_MAX)
             {  psi = DBL_MAX;
                goto done;
@@ -604,9 +627,11 @@ int ios_pcost_branch(glp_tree *T, int *_next)
 #endif
       int j, jjj, sel;
       double beta, psi, d1, d2, d, dmax;
+      struct csa *csa;
       /* initialize the working arrays */
       if (T->pcost == NULL)
          T->pcost = ios_pcost_init(T);
+      csa = T->pcost;
       /* nothing has been chosen so far */
       jjj = 0, dmax = -1.0;
       /* go through the list of branching candidates */
@@ -658,6 +683,11 @@ int ios_pcost_branch(glp_tree *T, int *_next)
          jjj = branch_mostf(T, &sel);
       }
 done: *_next = sel;
+      if (csa->work != NULL)
+      {  /* clean up working problem for next round */
+         glp_delete_prob(csa->work);
+         csa->work = NULL;
+      }
       return jjj;
 }
 
