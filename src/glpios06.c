@@ -4,7 +4,7 @@
 *  This code is part of GLPK (GNU Linear Programming Kit).
 *
 *  Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008,
-*  2009, 2010, 2011, 2013 Andrew Makhorin, Department for Applied
+*  2009, 2010, 2011, 2013, 2016 Andrew Makhorin, Department for Applied
 *  Informatics, Moscow Aviation Institute, Moscow, Russia. All rights
 *  reserved. E-mail: <mao@gnu.org>.
 *
@@ -21,6 +21,30 @@
 *  You should have received a copy of the GNU General Public License
 *  along with GLPK. If not, see <http://www.gnu.org/licenses/>.
 ***********************************************************************/
+
+#if 1 /* 29/II-2016 by Chris */
+/*----------------------------------------------------------------------
+Subject: Mir cut generation performance improvement
+From: Chris Matrakidis <cmatraki@gmail.com>
+To: Andrew Makhorin <mao@gnu.org>, help-glpk <help-glpk@gnu.org>
+
+Andrew,
+
+I noticed that mir cut generation takes considerable time on some large
+problems (like rocII-4-11 from miplib). The attached patch makes two
+improvements that considerably improve performance in such instances:
+1. A lot of time was spent on generating a temporary vector in function
+aggregate_row. It is a lot faster to reuse an existing vector.
+2. A search for an element in the same function was done in row order,
+where using the elements in the order they are in the column is more
+efficient. This changes the generated cuts in some cases, but seems
+neutral overall (0.3% less cuts in a test set of 64 miplib instances).
+
+Best Regards,
+
+Chris Matrakidis
+----------------------------------------------------------------------*/
+#endif
 
 #include "env.h"
 #include "glpios.h"
@@ -1208,13 +1232,19 @@ static void add_cut(glp_tree *tree, struct MIR *mir)
       return;
 }
 
+#if 0 /* 29/II-2016 by Chris */
 static int aggregate_row(glp_tree *tree, struct MIR *mir)
+#else
+static int aggregate_row(glp_tree *tree, struct MIR *mir, IOSVEC *v)
+#endif
 {     /* try to aggregate another row */
       glp_prob *mip = tree->mip;
       int m = mir->m;
       int n = mir->n;
       GLPAIJ *aij;
+#if 0 /* 29/II-2016 by Chris */
       IOSVEC *v;
+#endif
       int ii, j, jj, k, kk, kappa = 0, ret = 0;
       double d1, d2, d, d_max = 0.0;
       /* choose appropriate structural variable in the aggregated row
@@ -1272,13 +1302,29 @@ static int aggregate_row(glp_tree *tree, struct MIR *mir)
       xassert(!mir->isint[kappa]);
       /* find another row, which have not been used yet, to eliminate
          x[kappa] from the aggregated row */
+#if 0 /* 29/II-2016 by Chris */
       for (ii = 1; ii <= m; ii++)
       {  if (mir->skip[ii]) continue;
          for (aij = mip->row[ii]->ptr; aij != NULL; aij = aij->r_next)
             if (aij->col->j == kappa - m) break;
          if (aij != NULL && fabs(aij->val) >= 0.001) break;
+#else
+      ii = 0;
+      for (aij = mip->col[kappa - m]->ptr; aij != NULL;
+         aij = aij->c_next)
+      {  if (aij->row->i > m) continue;
+         if (mir->skip[aij->row->i]) continue;
+         if (fabs(aij->val) >= 0.001)
+         {  ii = aij->row->i;
+            break;
+         }
+#endif
       }
+#if 0 /* 29/II-2016 by Chris */
       if (ii > m)
+#else
+      if (ii == 0)
+#endif
       {  /* nothing found */
          ret = 2;
          goto done;
@@ -1289,7 +1335,11 @@ static int aggregate_row(glp_tree *tree, struct MIR *mir)
       mir->agg_row[mir->agg_cnt] = ii;
       mir->skip[ii] = 2;
       /* v := new row */
+#if 0 /* 29/II-2016 by Chris */
       v = ios_create_vec(m+n);
+#else
+      ios_clear_vec(v);
+#endif
       ios_set_vj(v, ii, 1.0);
       for (aij = mip->row[ii]->ptr; aij != NULL; aij = aij->r_next)
          ios_set_vj(v, m + aij->col->j, - aij->val);
@@ -1303,7 +1353,9 @@ static int aggregate_row(glp_tree *tree, struct MIR *mir)
       xassert(jj != 0);
       ios_linear_comb(mir->agg_vec,
          - mir->agg_vec->val[j] / v->val[jj], v);
+#if 0 /* 29/II-2016 by Chris */
       ios_delete_vec(v);
+#endif
       ios_set_vj(mir->agg_vec, kappa, 0.0);
 #if _MIR_DEBUG
       ios_check_vec(mir->agg_vec);
@@ -1319,6 +1371,9 @@ void ios_mir_gen(glp_tree *tree, void *gen)
       int n = mir->n;
       int i;
       double r_best;
+#if 1 /* 29/II-2016 by Chris */
+      IOSVEC *work;
+#endif
       xassert(mip->m >= m);
       xassert(mip->n == n);
       /* obtain current point */
@@ -1329,6 +1384,9 @@ void ios_mir_gen(glp_tree *tree, void *gen)
 #endif
       /* reset bound substitution flags */
       memset(&mir->subst[1], '?', m+n);
+#if 1 /* 29/II-2016 by Chris */
+      work = ios_create_vec(m+n);
+#endif
       /* try to generate a set of violated MIR cuts */
       for (i = 1; i <= m; i++)
       {  if (mir->skip[i]) continue;
@@ -1396,7 +1454,11 @@ loop:    ;
          {  /* failure */
             if (mir->agg_cnt < MAXAGGR)
             {  /* try to aggregate another row */
+#if 0 /* 29/II-2016 by Chris */
                if (aggregate_row(tree, mir) == 0) goto loop;
+#else
+               if (aggregate_row(tree, mir, work) == 0) goto loop;
+#endif
             }
          }
          /* unmark rows used in the aggregated constraint */
@@ -1409,6 +1471,9 @@ loop:    ;
             }
          }
       }
+#if 1 /* 29/II-2016 by Chris */
+      ios_delete_vec(work);
+#endif
       return;
 }
 
