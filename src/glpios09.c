@@ -69,7 +69,8 @@ int ios_choose_var(glp_tree *T, int *next)
       {  /* branch using the heuristic by Dreebeck and Tomlin */
          j = branch_drtom(T, next);
       }
-      else if (T->parm->br_tech == GLP_BR_PCH)
+      else if (T->parm->br_tech == GLP_BR_PCH ||
+               T->parm->br_tech == GLP_BR_PMH)
       {  /* hybrid pseudocost heuristic */
          j = ios_pcost_branch(T, next);
       }
@@ -686,8 +687,14 @@ int ios_pcost_branch(glp_tree *T, int *_next)
          }
          /* estimate degradation of the objective for up-branch */
          d2 = psi * (ceil(beta) - beta);
-         /* determine d = max(d1, d2) */
-         d = (d1 > d2 ? d1 : d2);
+         if (T->parm->br_tech == GLP_BR_PCH)
+         {  /* determine d = max(d1, d2) */
+            d = (d1 > d2 ? d1 : d2);
+         }
+         else
+         {  /* determine d = d1 * d2 (with small bias to avoid zero) */
+            d = (1e-6 + d1) * (1e-6 + d2);
+         }
          /* choose x[j] which provides maximal estimated degradation of
             the objective either in down- or up-branch */
          if (dmax < d)
@@ -705,7 +712,9 @@ int ios_pcost_branch(glp_tree *T, int *_next)
             }
          }
       }
-      if (dmax == 0.0)
+      /* dmax is either zero or above 1e-6 for max score and 1e-12 or
+         above 2e-12 for product score */
+      if (dmax < 1.5e-12)
       {  /* no degradation is indicated; choose a variable having most
             fractional value */
          jjj = branch_mostf(T, &sel);

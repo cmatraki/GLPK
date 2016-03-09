@@ -361,6 +361,8 @@ static void print_help(const char *my_name)
       xprintf("   --pcost           branch using hybrid pseudocost heur"
          "istic (may be\n");
       xprintf("                     useful for hard instances)\n");
+      xprintf("   --pcostmul        variation of --pcost using product "
+         "score\n");
       xprintf("   --dfs             backtrack using depth first search "
          "\n");
       xprintf("   --bfs             backtrack using breadth first searc"
@@ -808,6 +810,8 @@ static int parse_cmdline(struct csa *csa, int argc, char *argv[])
             csa->iocp.br_tech = GLP_BR_DTH;
          else if (p("--mostf"))
             csa->iocp.br_tech = GLP_BR_MFV;
+         else if (p("--pcostmul"))
+            csa->iocp.br_tech = GLP_BR_PMH;
          else if (p("--pcost"))
             csa->iocp.br_tech = GLP_BR_PCH;
          else if (p("--dfs"))

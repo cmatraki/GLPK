@@ -163,6 +163,7 @@ typedef struct
 #define GLP_BR_MFV         3  /* most fractional variable */
 #define GLP_BR_DTH         4  /* heuristic by Driebeck and Tomlin */
 #define GLP_BR_PCH         5  /* hybrid pseudocost heuristic */
+#define GLP_BR_PMH         6  /* like GLP_BR_PCH with product score */
       int bt_tech;            /* backtracking technique: */
 #define GLP_BT_DFS         1  /* depth first search */
 #define GLP_BT_BFS         2  /* breadth first search */
