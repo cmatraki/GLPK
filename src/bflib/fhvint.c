@@ -165,4 +165,51 @@ void fhvint_delete(FHVINT *fi)
       return;
 }
 
+void fhvint_copy(FHVINT *dst, FHVINT *src)
+{     /* copy interface to FHV-factorization */
+      int nfs_max, n_max, n, nfs;
+      nfs_max = dst->nfs_max;
+      nfs = src->fhv.nfs;
+      n_max = (dst->lufi != NULL) ? dst->lufi->n_max : 0;
+      n = src->lufi->luf->n;
+      if(nfs_max < nfs)
+      {  nfs_max = src->nfs_max;
+         if (dst->fhv.hh_ind != NULL)
+         {  tfree(dst->fhv.hh_ind);
+            dst->fhv.hh_ind = NULL;
+         }
+      }
+      if(n_max < n)
+      {  n_max = src->lufi->n_max;
+         if (dst->fhv.p0_ind != NULL)
+         {  tfree(dst->fhv.p0_ind);
+            dst->fhv.p0_ind = NULL;
+         }
+         if (dst->fhv.p0_inv != NULL)
+         {  tfree(dst->fhv.p0_inv);
+            dst->fhv.p0_inv = NULL;
+         }
+      }
+      if (dst->fhv.hh_ind == NULL)
+         dst->fhv.hh_ind = talloc(1+nfs_max, int);
+      if (dst->fhv.p0_ind == NULL)
+         dst->fhv.p0_ind = talloc(1+n_max, int);
+      if (dst->fhv.p0_inv == NULL)
+         dst->fhv.p0_inv = talloc(1+n_max, int);
+      if (src->fhv.hh_ind != NULL)
+         memcpy(dst->fhv.hh_ind, src->fhv.hh_ind,
+            (1+nfs) * sizeof(int));
+      if (src->fhv.p0_ind != NULL)
+         memcpy(dst->fhv.p0_ind, src->fhv.p0_ind, (1+n) * sizeof(int));
+      if (src->fhv.p0_inv != NULL)
+         memcpy(dst->fhv.p0_inv, src->fhv.p0_inv, (1+n) * sizeof(int));
+      dst->valid = src->valid;
+      dst->fhv.nfs_max = nfs_max;
+      dst->fhv.nfs = nfs;
+      dst->fhv.hh_ref = src->fhv.hh_ref;
+      dst->nfs_max = nfs_max;
+      lufint_copy(dst->lufi, src->lufi);
+      dst->fhv.luf = dst->lufi->luf;
+      return;
+}
 /* eof */

@@ -156,6 +156,10 @@ void sva_check_area(SVA *sva);
 void sva_delete_area(SVA *sva);
 /* delete sparse vector area (SVA) */
 
+#define sva_copy_area _glp_sva_copy_area
+void sva_copy_area(SVA *dst, SVA *src);
+/* copy sparse vector area (SVA) */
+
 #endif
 
 /* eof */

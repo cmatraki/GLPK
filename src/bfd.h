@@ -102,6 +102,10 @@ int bfd_get_count(BFD *bfd);
 void bfd_delete_it(BFD *bfd);
 /* delete LP basis factorization */
 
+#define bfd_copy _glp_bfd_copy
+void bfd_copy(BFD *dst, BFD *src);
+/* copy LP basis factorization */
+
 #endif
 
 /* eof */

@@ -68,6 +68,10 @@ int lufint_factorize(LUFINT *fi, int n, int (*col)(void *info, int j,
 void lufint_delete(LUFINT *fi);
 /* delete interface to LU-factorization */
 
+#define lufint_copy _glp_lufint_copy
+void lufint_copy(LUFINT *dst, LUFINT *src);
+/* copy interface to LU-factorization */
+
 #endif
 
 /* eof */

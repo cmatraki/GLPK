@@ -569,4 +569,73 @@ void sva_delete_area(SVA *sva)
       return;
 }
 
+/***********************************************************************
+*  sva_copy_area - copy sparse vector area (SVA)
+*
+*  This routine copies a sparse vector area (SVA) into another avoiding
+*  new memory allocations if possible */
+
+void sva_copy_area(SVA *dst, SVA *src)
+{     int size, req, delta, k, n, n_max, ptr, len, r_ptr;
+      size = dst->size;
+      r_ptr = src->r_ptr;
+      req = src->m_ptr + src->size + 1 - r_ptr;
+      if (req >= size)
+      {  size = dst->size = src->size;
+         tfree(dst->ind);
+         tfree(dst->val);
+         dst->ind = talloc(1+size, int);
+         dst->val = talloc(1+size, double);
+      }
+      delta = size - src->size;
+      n = src->n;
+      n_max = dst->n_max;
+      if (n >= n_max)
+      {  n_max = dst->n_max = src->n_max;
+         tfree(dst->ptr);
+         tfree(dst->len);
+         tfree(dst->cap);
+         tfree(dst->prev);
+         tfree(dst->next);
+         dst->ptr = talloc(1+n_max, int);
+         dst->len = talloc(1+n_max, int);
+         dst->cap = talloc(1+n_max, int);
+         dst->prev = talloc(1+n_max, int);
+         dst->next = talloc(1+n_max, int);
+      }
+      dst->n = src->n;
+      dst->m_ptr = src->m_ptr;
+      dst->r_ptr = src->r_ptr + delta;
+      dst->head = src->head;
+      dst->tail = src->tail;
+      dst->talky = src->talky;
+      memcpy(dst->ptr, src->ptr, (1+n) * sizeof(int));
+      memcpy(dst->len, src->len, (1+n) * sizeof(int));
+      memcpy(dst->cap, src->cap, (1+n) * sizeof(int));
+      memcpy(dst->prev, src->prev, (1+n) * sizeof(int));
+      memcpy(dst->next, src->next, (1+n) * sizeof(int));
+      /* use linked list to copy the vectors in the left part */
+      for (k = src->head; k != 0; k = src->next[k])
+      {  ptr = src->ptr[k];
+         len = src->len[k];
+         memcpy(dst->ind + ptr, src->ind + ptr, len * sizeof(int));
+         memcpy(dst->val + ptr, src->val + ptr, len * sizeof(double));
+      }
+      /* copy right part and adjust pointers for delta */
+      if (r_ptr <= src->size)
+      {  len = src->size + 1 - r_ptr;
+         memcpy(dst->ind + r_ptr + delta, src->ind + r_ptr,
+            len * sizeof(int));
+         memcpy(dst->val + r_ptr + delta, src->val + r_ptr,
+            len * sizeof(double));
+         if (delta != 0)
+         {  for (k = 1; k <= n; k++)
+            {  if (dst->ptr[k] >= r_ptr)
+                  dst->ptr[k] += delta;
+            }
+         }
+      }
+      return;
+}
+
 /* eof */

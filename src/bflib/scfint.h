@@ -84,6 +84,10 @@ double scfint_estimate(SCFINT *fi);
 void scfint_delete(SCFINT *fi);
 /* delete interface to SC-factorization */
 
+#define scfint_copy _glp_scfint_copy
+void scfint_copy(SCFINT *dst, SCFINT *src);
+/* copy interface to SC-factorization */
+
 #endif
 
 /* eof */

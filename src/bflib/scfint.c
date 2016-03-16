@@ -252,4 +252,103 @@ void scfint_delete(SCFINT *fi)
       return;
 }
 
+void scfint_copy(SCFINT *dst, SCFINT *src)
+{     /* copy interface to SC-factorization */
+      int n0_max, old_n0_max, nn_max, n0, nn, k, n;
+      xassert(src->scf.type == dst->scf.type);
+      switch (src->scf.type)
+      {  case 1:
+            old_n0_max = dst->u.lufi->n_max;
+            lufint_copy(dst->u.lufi, src->u.lufi);
+            n0_max = dst->u.lufi->n_max;
+            n0 = dst->u.lufi->luf->n;
+            dst->scf.sva = dst->u.lufi->sva;
+            dst->scf.a0.luf = dst->u.lufi->luf;
+            break;
+         case 2:
+            old_n0_max = dst->u.btfi->n_max;
+            btfint_copy(dst->u.btfi, src->u.btfi);
+            n0_max = dst->u.btfi->n_max;
+            n0 = dst->u.btfi->btf->n;
+            dst->scf.sva = dst->u.btfi->sva;
+            dst->scf.a0.btf = dst->u.btfi->btf;
+            break;
+         default:
+            xassert(dst != dst);
+      }
+      /* allocate/reallocate arrays, if necessary */
+      if (old_n0_max < n0_max)
+      {  if (dst->w1 != NULL)
+            tfree(dst->w1);
+         if (dst->w2 != NULL)
+            tfree(dst->w2);
+         if (dst->w3 != NULL)
+            tfree(dst->w3);
+         dst->w1 = talloc(1+n0_max, double);
+         dst->w2 = talloc(1+n0_max, double);
+         dst->w3 = talloc(1+n0_max, double);
+      }
+      nn_max = dst->scf.nn_max;
+      nn = src->scf.nn;
+      if (nn > nn_max)
+      {  nn_max = src->scf.nn_max;
+         if (dst->scf.ifu.f != NULL)
+            tfree(dst->scf.ifu.f);
+         if (dst->scf.ifu.u != NULL)
+            tfree(dst->scf.ifu.u);
+         dst->scf.ifu.f = talloc(nn_max * nn_max, double);
+         dst->scf.ifu.u = talloc(nn_max * nn_max, double);
+      }
+      n = src->scf.ifu.n;
+      if (src->scf.ifu.f != NULL)
+         for (k = 0; k < n; k++)
+            memcpy(dst->scf.ifu.f + k, src->scf.ifu.f + k,
+               n * sizeof(double));
+      if (src->scf.ifu.u != NULL)
+         for (k = 0; k < n; k++)
+            memcpy(dst->scf.ifu.u + k, src->scf.ifu.u + k,
+               n * sizeof(double));
+      if (old_n0_max < n0_max || dst->scf.nn_max != nn_max)
+      {  if (dst->scf.pp_ind != NULL)
+            tfree(dst->scf.pp_ind);
+         if (dst->scf.pp_inv != NULL)
+            tfree(dst->scf.pp_inv);
+         if (dst->scf.qq_ind != NULL)
+            tfree(dst->scf.qq_ind);
+         if (dst->scf.qq_inv != NULL)
+            tfree(dst->scf.qq_inv);
+         if (dst->w4 != NULL)
+            tfree(dst->w4);
+         if (dst->w5 != NULL)
+            tfree(dst->w5);
+         dst->scf.pp_ind = talloc(1+n0_max+nn_max, int);
+         dst->scf.pp_inv = talloc(1+n0_max+nn_max, int);
+         dst->scf.qq_ind = talloc(1+n0_max+nn_max, int);
+         dst->scf.qq_inv = talloc(1+n0_max+nn_max, int);
+         dst->w4 = talloc(1+n0_max+nn_max, double);
+         dst->w5 = talloc(1+n0_max+nn_max, double);
+      }
+      k = src->scf.n0 + src->scf.nn;
+      if (src->scf.pp_ind != NULL)
+         memcpy(dst->scf.pp_ind, src->scf.pp_ind, (1+k) * sizeof(int));
+      if (src->scf.pp_inv != NULL)
+         memcpy(dst->scf.pp_inv, src->scf.pp_inv, (1+k) * sizeof(int));
+      if (src->scf.qq_ind != NULL)
+         memcpy(dst->scf.qq_ind, src->scf.qq_ind, (1+k) * sizeof(int));
+      if (src->scf.qq_inv != NULL)
+         memcpy(dst->scf.qq_inv, src->scf.qq_inv, (1+k) * sizeof(int));
+      /* copy SC-factorization */
+      dst->scf.n = src->scf.n;
+      dst->scf.n0 = src->scf.n0;
+      dst->scf.nn_max = nn_max;
+      dst->scf.nn = src->scf.nn;
+      dst->scf.rr_ref = src->scf.rr_ref;
+      dst->scf.ss_ref = src->scf.ss_ref;
+      dst->scf.ifu.n_max = nn_max;
+      dst->scf.ifu.n = src->scf.ifu.n;
+      dst->nn_max = src->nn_max;
+      dst->valid = src->valid;
+      return;
+}
+
 /* eof */

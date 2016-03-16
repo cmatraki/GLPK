@@ -68,6 +68,10 @@ int btfint_factorize(BTFINT *fi, int n, int (*col)(void *info, int j,
 void btfint_delete(BTFINT *fi);
 /* delete interface to BT-factorization */
 
+#define btfint_copy _glp_btfint_copy
+void btfint_copy(BTFINT *dst, BTFINT *src);
+/* copy interface to BT-factorization */
+
 #endif
 
 /* eof */

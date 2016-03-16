@@ -541,4 +541,44 @@ void bfd_delete_it(BFD *bfd)
       return;
 }
 
+void bfd_copy(BFD *dst, BFD *src)
+{     /* copy LP basis factorization */
+#ifdef GLP_DEBUG
+      int i;
+#endif
+      xassert(dst != NULL);
+      dst->valid = src->valid;
+      dst->type = src->type;
+      dst->parm = src->parm;
+      dst->upd_cnt = src->upd_cnt;
+      dst->i_norm = src->i_norm;
+#ifdef GLP_DEBUG
+      if (dst->B != NULL)
+         spm_delete_mat(dst->B);
+      dst->B = spm_create_mat(src->B->m, src->B->n);
+      for (i = 1; i <= src->B->m; i++)
+      {  SPME *e;
+         for (e = src->B->row[i]; e != NULL; e = e->r_next)
+            spm_new_elem(dst->B, i, e->j, e->val);
+      }
+#endif
+      switch (dst->type)
+      {  case 0:
+            break;
+         case 1:
+            if (dst->u.fhvi == NULL)
+               dst->u.fhvi = fhvint_create();
+            fhvint_copy(dst->u.fhvi, src->u.fhvi);
+            break;
+         case 2:
+            if (dst->u.scfi == NULL)
+               dst->u.scfi = scfint_create(src->u.scfi->scf.type);
+            scfint_copy(dst->u.scfi, src->u.scfi);
+            break;
+         default:
+            xassert(dst != dst);
+      }
+      return;
+}
+
 /* eof */

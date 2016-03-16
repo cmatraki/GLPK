@@ -404,4 +404,100 @@ void btfint_delete(BTFINT *fi)
       return;
 }
 
+void btfint_copy(BTFINT *dst, BTFINT *src)
+{     /* copy interface to BT-factorization */
+      int n, n_max;
+      n = src->btf->n;
+      n_max = dst->n_max;
+      if (n > n_max)
+      {  n_max = dst->n_max = src->n_max;
+         if (dst->btf != NULL)
+         {  tfree(dst->btf->pp_ind);
+            tfree(dst->btf->pp_inv);
+            tfree(dst->btf->qq_ind);
+            tfree(dst->btf->qq_inv);
+            tfree(dst->btf->beg);
+            tfree(dst->btf->vr_piv);
+            tfree(dst->btf->p1_ind);
+            tfree(dst->btf->p1_inv);
+            tfree(dst->btf->q1_ind);
+            tfree(dst->btf->q1_inv);
+         }
+         else
+            dst->btf = talloc(1, BTF);
+         dst->btf->pp_ind = talloc(1+n_max, int);
+         dst->btf->pp_inv = talloc(1+n_max, int);
+         dst->btf->qq_ind = talloc(1+n_max, int);
+         dst->btf->qq_inv = talloc(1+n_max, int);
+         dst->btf->beg = talloc(1+n_max+1, int);
+         dst->btf->vr_piv = talloc(1+n_max, double);
+         dst->btf->p1_ind = talloc(1+n_max, int);
+         dst->btf->p1_inv = talloc(1+n_max, int);
+         dst->btf->q1_ind = talloc(1+n_max, int);
+         dst->btf->q1_inv = talloc(1+n_max, int);
+         if (dst->sgf != NULL)
+         {  tfree(dst->sgf->rs_head);
+            tfree(dst->sgf->rs_prev);
+            tfree(dst->sgf->rs_next);
+            tfree(dst->sgf->cs_head);
+            tfree(dst->sgf->cs_prev);
+            tfree(dst->sgf->cs_next);
+            tfree(dst->sgf->vr_max);
+            tfree(dst->sgf->flag);
+            tfree(dst->sgf->work);
+         }
+         else
+            dst->sgf = talloc(1, SGF);
+         dst->sgf->rs_head = talloc(1+n_max, int);
+         dst->sgf->rs_prev = talloc(1+n_max, int);
+         dst->sgf->rs_next = talloc(1+n_max, int);
+         dst->sgf->cs_head = talloc(1+n_max, int);
+         dst->sgf->cs_prev = talloc(1+n_max, int);
+         dst->sgf->cs_next = talloc(1+n_max, int);
+         dst->sgf->vr_max = talloc(1+n_max, double);
+         dst->sgf->flag = talloc(1+n_max, char);
+         dst->sgf->work = talloc(1+n_max, double);
+      }
+      dst->valid = src->valid;
+      dst->sva_n_max = src->sva_n_max;
+      dst->sva_size = src->sva_size;
+      dst->delta_n0 = src->delta_n0;
+      dst->delta_n = src->delta_n;
+      dst->sgf_piv_tol = src->sgf_piv_tol;
+      dst->sgf_piv_lim  = src->sgf_piv_lim;
+      dst->sgf_suhl = src->sgf_suhl;
+      dst->sgf_eps_tol = src->sgf_eps_tol;
+      if (dst->sva == NULL)
+         dst->sva = sva_create_area(src->sva->n_max, src->sva->size);
+      sva_copy_area(dst->sva, src->sva);
+      dst->btf->n = n;
+      dst->btf->num =src->btf->num;
+      dst->btf->ar_ref = src->btf->ar_ref;
+      dst->btf->ac_ref = src->btf->ac_ref;
+      dst->btf->fr_ref = src->btf->fr_ref;
+      dst->btf->fc_ref = src->btf->fc_ref;
+      dst->btf->vr_ref = src->btf->vr_ref;
+      dst->btf->vc_ref = src->btf->vc_ref;
+      memcpy(dst->btf->vr_piv, src->btf->vr_piv,
+         (1+n) * sizeof(double));
+      memcpy(dst->btf->pp_ind, src->btf->pp_ind,(1+n) * sizeof(int));
+      memcpy(dst->btf->pp_inv, src->btf->pp_inv, (1+n) * sizeof(int));
+      memcpy(dst->btf->qq_ind, src->btf->qq_ind, (1+n) * sizeof(int));
+      memcpy(dst->btf->qq_inv, src->btf->qq_inv, (1+n) * sizeof(int));
+      memcpy(dst->btf->beg, src->btf->beg,
+         (1+src->btf->num+1) * sizeof(int));
+      memcpy(dst->btf->p1_ind, src->btf->p1_ind, (1+n) * sizeof(int));
+      memcpy(dst->btf->p1_inv, src->btf->p1_inv, (1+n) * sizeof(int));
+      memcpy(dst->btf->q1_ind, src->btf->q1_ind, (1+n) * sizeof(int));
+      memcpy(dst->btf->q1_inv, src->btf->q1_inv, (1+n) * sizeof(int));
+      dst->btf->sva = dst->sva;
+      dst->sgf->luf = src->sgf->luf;
+      dst->sgf->updat = src->sgf->updat;
+      dst->sgf->piv_tol = src->sgf->piv_tol;
+      dst->sgf->piv_lim = src->sgf->piv_lim;
+      dst->sgf->suhl = src->sgf->suhl;
+      dst->sgf->eps_tol = src->sgf->eps_tol;
+      return;
+}
+
 /* eof */

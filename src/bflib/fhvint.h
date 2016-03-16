@@ -73,6 +73,10 @@ double fhvint_estimate(FHVINT *fi);
 void fhvint_delete(FHVINT *fi);
 /* delete interface to FHV-factorization */
 
+#define fhvint_copy _glp_fhvint_copy
+void fhvint_copy(FHVINT *dst, FHVINT *src);
+/* copy interface to FHV-factorization */
+
 #endif
 
 /* eof */

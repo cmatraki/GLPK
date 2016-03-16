@@ -179,4 +179,82 @@ void lufint_delete(LUFINT *fi)
       return;
 }
 
+void lufint_copy(LUFINT *dst, LUFINT *src)
+{     /* copy interface to LU-factorization */
+      int n, n_max;
+      n = src->luf->n;
+      n_max = dst->n_max;
+      if (n > n_max)
+      {  n_max = dst->n_max = src->n_max;
+         if (dst->luf != NULL)
+         {  tfree(dst->luf->vr_piv);
+            tfree(dst->luf->pp_ind);
+            tfree(dst->luf->pp_inv);
+            tfree(dst->luf->qq_ind);
+            tfree(dst->luf->qq_inv);
+         }
+         else
+            dst->luf = talloc(1, LUF);
+         dst->luf->vr_piv = talloc(1+n_max, double);
+         dst->luf->pp_ind = talloc(1+n_max, int);
+         dst->luf->pp_inv = talloc(1+n_max, int);
+         dst->luf->qq_ind = talloc(1+n_max, int);
+         dst->luf->qq_inv = talloc(1+n_max, int);
+         if (dst->sgf != NULL)
+         {  tfree(dst->sgf->rs_head);
+            tfree(dst->sgf->rs_prev);
+            tfree(dst->sgf->rs_next);
+            tfree(dst->sgf->cs_head);
+            tfree(dst->sgf->cs_prev);
+            tfree(dst->sgf->cs_next);
+            tfree(dst->sgf->vr_max);
+            tfree(dst->sgf->flag);
+            tfree(dst->sgf->work);
+         }
+         else
+            dst->sgf = talloc(1, SGF);
+         dst->sgf->rs_head = talloc(1+n_max, int);
+         dst->sgf->rs_prev = talloc(1+n_max, int);
+         dst->sgf->rs_next = talloc(1+n_max, int);
+         dst->sgf->cs_head = talloc(1+n_max, int);
+         dst->sgf->cs_prev = talloc(1+n_max, int);
+         dst->sgf->cs_next = talloc(1+n_max, int);
+         dst->sgf->vr_max = talloc(1+n_max, double);
+         dst->sgf->flag = talloc(1+n_max, char);
+         dst->sgf->work = talloc(1+n_max, double);
+      }
+      dst->valid = src->valid;
+      dst->sva_n_max = src->sva_n_max;
+      dst->sva_size = src->sva_size;
+      dst->delta_n0 = src->delta_n0;
+      dst->delta_n = src->delta_n;
+      dst->sgf_updat = src->sgf_updat;
+      dst->sgf_piv_tol = src->sgf_piv_tol;
+      dst->sgf_piv_lim  = src->sgf_piv_lim;
+      dst->sgf_suhl = src->sgf_suhl;
+      dst->sgf_eps_tol = src->sgf_eps_tol;
+      if (dst->sva == NULL)
+         dst->sva = sva_create_area(src->sva->n_max, src->sva->size);
+      sva_copy_area(dst->sva, src->sva);
+      dst->luf->n = n;
+      dst->luf->fr_ref = src->luf->fr_ref;
+      dst->luf->fc_ref = src->luf->fc_ref;
+      dst->luf->vr_ref = src->luf->vr_ref;
+      dst->luf->vc_ref = src->luf->vc_ref;
+      memcpy(dst->luf->vr_piv, src->luf->vr_piv,
+         (1+n) * sizeof(double));
+      memcpy(dst->luf->pp_ind, src->luf->pp_ind, (1+n) * sizeof(int));
+      memcpy(dst->luf->pp_inv, src->luf->pp_inv, (1+n) * sizeof(int));
+      memcpy(dst->luf->qq_ind, src->luf->qq_ind, (1+n) * sizeof(int));
+      memcpy(dst->luf->qq_inv, src->luf->qq_inv, (1+n) * sizeof(int));
+      dst->luf->sva = dst->sva;
+      dst->sgf->luf = dst->luf;
+      dst->sgf->updat = src->sgf->updat;
+      dst->sgf->piv_tol = src->sgf->piv_tol;
+      dst->sgf->piv_lim = src->sgf->piv_lim;
+      dst->sgf->suhl = src->sgf->suhl;
+      dst->sgf->eps_tol = src->sgf->eps_tol;
+      return;
+}
+
 /* eof */
