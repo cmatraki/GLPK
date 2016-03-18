@@ -124,6 +124,9 @@ typedef struct
       int r_test;             /* ratio test technique: */
 #define GLP_RT_STD      0x11  /* standard (textbook) */
 #define GLP_RT_HAR      0x22  /* Harris' two-pass ratio test */
+#if 1 /* 16/III-2016 */
+#define GLP_RT_FLIP     0x33  /* long-step (flip-flop) ratio test */
+#endif
       double tol_bnd;         /* spx.tol_bnd */
       double tol_dj;          /* spx.tol_dj */
       double tol_piv;         /* spx.tol_piv */
@@ -194,7 +197,10 @@ typedef struct
       const char *save_sol;   /* filename to save every new solution */
       int alien;              /* use alien solver */
 #endif
-      double foo_bar[24];     /* (reserved) */
+#if 1 /* 16/III-2016; not documented--should not be used */
+      int flip;               /* use long-step dual simplex */
+#endif
+      double foo_bar[23];     /* (reserved) */
 } glp_iocp;
 
 typedef struct

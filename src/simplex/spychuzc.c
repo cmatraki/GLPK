@@ -252,4 +252,147 @@ int spy_chuzc_harris(SPXLP *lp, const double d[/*1+n-m*/],
 done: return q;
 }
 
+/***********************************************************************
+*  spy_eval_bp - determine dual objective function break-points
+*
+*  This routine determines the dual objective function break-points.
+*
+*  The parameters lp, d, r, trow, and tol_piv have the same meaning as
+*  for the routine spx_chuzc_std (see above).
+*
+*  On exit the routine stores the break-points determined to the array
+*  elements bp[1], ..., bp[num], where 0 <= num <= n-m is the number of
+*  break-points returned by the routine.
+*
+*  The break-points stored in the array bp are ordered by ascending
+*  the ray parameter teta >= 0. The break-points numbered 1, ..., num-1
+*  always correspond to non-basic non-fixed variables xN[j] of primal
+*  LP having both lower and upper bounds while the last break-point
+*  numbered num may correspond to a non-basic variable having only one
+*  lower or upper bound, if such variable prevents further increasing
+*  of the ray parameter teta. Besides, the routine includes in the
+*  array bp only the break-points that correspond to positive increment
+*  of the dual objective. */
+
+static int fcmp(const void *v1, const void *v2)
+{     const SPYBP *p1 = v1, *p2 = v2;
+      if (p1->teta < p2->teta)
+         return -1;
+      else if (p1->teta > p2->teta)
+         return +1;
+      else
+         return 0;
+}
+
+int spy_eval_bp(SPXLP *lp, const double d[/*1+n-m*/],
+      double r, const double trow[/*1+n-m*/], double tol_piv,
+      SPYBP bp[/*1+n-m*/])
+{     int m = lp->m;
+      int n = lp->n;
+      double *l = lp->l;
+      double *u = lp->u;
+      int *head = lp->head;
+      char *flag = lp->flag;
+      int j, j_max, k, t, nnn, num;
+      double s, alfa, teta, teta_max, dz, v;
+      xassert(r != 0.0);
+      s = (r > 0.0 ? +1.0 : -1.0);
+      /* build the list of all dual basic variables lambdaN[j] that
+       * can reach zero on increasing the ray parameter teta >= 0 */
+      num = 0;
+      /* walk thru the list of non-basic variables */
+      for (j = 1; j <= n-m; j++)
+      {  k = head[m+j]; /* x[k] = xN[j] */
+         /* if xN[j] is fixed variable, skip it */
+         if (l[k] == u[k])
+            continue;
+         alfa = s * trow[j];
+         if (alfa >= +tol_piv && !flag[j])
+         {  /* xN[j] is either free or has its lower bound active, so
+             * lambdaN[j] = d[j] >= 0 decreases down to zero */
+            /* determine teta[j] on which lambdaN[j] reaches zero */
+            teta = (d[j] < 0.0 ? 0.0 : d[j] / alfa);
+         }
+         else if (alfa <= -tol_piv && (l[k] == -DBL_MAX || flag[j]))
+         {  /* xN[j] is either free or has its upper bound active, so
+             * lambdaN[j] = d[j] <= 0 increases up to zero */
+            /* determine teta[j] on which lambdaN[j] reaches zero */
+            teta = (d[j] > 0.0 ? 0.0 : d[j] / alfa);
+         }
+         else
+         {  /* lambdaN[j] cannot reach zero on increasing teta */
+            continue;
+         }
+         /* add lambdaN[j] to the list */
+         num++;
+         bp[num].j = j;
+         bp[num].teta = teta;
+      }
+      if (num == 0)
+      {  /* dual unboundedness */
+         goto done;
+      }
+      /* determine "blocking" dual basic variable lambdaN[j_max] that
+       * prevents increasing teta more than teta_max */
+      j_max = 0, teta_max = DBL_MAX;
+      for (t = 1; t <= num; t++)
+      {  j = bp[t].j;
+         k = head[m+j]; /* x[k] = xN[j] */
+         if (l[k] == -DBL_MAX || u[k] == +DBL_MAX)
+         {  /* lambdaN[j] cannot intersect zero */
+            if (j_max == 0
+               || teta_max > bp[t].teta
+               || (teta_max == bp[t].teta
+                  && fabs(trow[j_max]) < fabs(trow[j])))
+               j_max = j, teta_max = bp[t].teta;
+         }
+      }
+      /* keep in the list only dual basic variables lambdaN[j] that
+       * correspond to primal double-bounded variables xN[j] and whose
+       * teta[j] is not greater than teta_max */
+      nnn = 0;
+      for (t = 1; t <= num; t++)
+      {  j = bp[t].j;
+         k = head[m+j]; /* x[k] = xN[j] */
+         if (l[k] != -DBL_MAX && u[k] != +DBL_MAX
+            && bp[t].teta <= teta_max)
+         {  nnn++;
+            bp[nnn].j = j;
+            bp[nnn].teta = bp[t].teta;
+         }
+      }
+      num = nnn;
+      /* sort break-points by ascending teta[j] */
+      qsort(&bp[1], num, sizeof(SPYBP), fcmp);
+      /* add lambdaN[j_max] to the end of the list */
+      if (j_max != 0)
+      {  xassert(num < n-m);
+         num++;
+         bp[num].j = j_max;
+         bp[num].teta = teta_max;
+      }
+      /* compute increments of the dual objective at all break-points
+       * (relative to its value at teta = 0) */
+      dz = 0.0;      /* dual objective increment */
+      v = fabs(r);   /* dual objective slope d zeta / d teta */
+      for (t = 1; t <= num; t++)
+      {  /* compute increment at current break-point */
+         dz += v * (bp[t].teta - (t == 1 ? 0.0 : bp[t-1].teta));
+         if (dz < 0.001)
+         {  /* break-point with non-positive increment reached */
+            num = t - 1;
+            break;
+         }
+         bp[t].dz = dz;
+         /* compute next slope on the right to current break-point */
+         if (t < num)
+         {  j = bp[t].j;
+            k = head[m+j]; /* x[k] = xN[j] */
+            xassert(-DBL_MAX < l[k] && l[k] < u[k] && u[k] < +DBL_MAX);
+            v -= fabs(trow[j]) * (u[k] - l[k]);
+         }
+      }
+done: return num;
+}
+
 /* eof */

@@ -97,6 +97,10 @@ struct csa
       /* xB[p] is a basic variable chosen to leave the basis */
       double *trow; /* double trow[1+n-m]; */
       /* p-th (pivot) row of the simplex table */
+#if 1 /* 16/III-2016 */
+      SPYBP *bp; /* SPYBP bp[1+n-m]; */
+      /* dual objective break-points */
+#endif
       int q;
       /* xN[q] is a non-basic variable chosen to enter the basis */
       double *tcol; /* double tcol[1+m]; */
@@ -113,10 +117,18 @@ struct csa
       /* message level */
       int dualp;
       /* if this flag is set, report failure in case of instability */
+#if 0 /* 16/III-2016 */
       int harris;
       /* dual ratio test technique:
        * 0 - textbook ratio test
        * 1 - Harris' two pass ratio test */
+#else
+      int r_test;
+      /* dual ratio test technique:
+       * GLP_RT_STD  - textbook ratio test
+       * GLP_RT_HAR  - Harris' two pass ratio test
+       * GLP_RT_FLIP - long-step (flip-flop) ratio test */
+#endif
       double tol_bnd, tol_bnd1;
       /* primal feasibility tolerances */
       double tol_dj, tol_dj1;
@@ -504,16 +516,20 @@ static void check_accuracy(struct csa *csa)
 *  computes p-th row T[p,*] of the simplex table T[i,j] and chooses
 *  non-basic variable xN[q]. If the pivot T[p,q] is small in magnitude,
 *  the routine attempts to choose another xB[p] and xN[q] in order to
-*  avoid badly conditioned adjacent bases. */
+*  avoid badly conditioned adjacent bases.
+*
+*  If the normal choice was made, the routine returns zero. Otherwise,
+*  if the long-step choice was made, the routine returns non-zero. */
 
-static void choose_pivot(struct csa *csa)
+#if 1 /* 16/III-2016 */
+#define MIN_RATIO 0.0001
+
+static int choose_pivot(struct csa *csa)
 {     SPXLP *lp = csa->lp;
       int m = lp->m;
       int n = lp->n;
       double *l = lp->l;
-#if 1 /* 14/III-2016 */
       double *u = lp->u;
-#endif
       int *head = lp->head;
       SPXAT *at = csa->at;
       SPXNT *nt = csa->nt;
@@ -523,14 +539,18 @@ static void choose_pivot(struct csa *csa)
       int *list = csa->list;
       double *rho = csa->work;
       double *trow = csa->work1;
-      int nnn, try, k, p, q, t;
+      SPYBP *bp = csa->bp;
+      double tol_piv = csa->tol_piv;
+      int try, nnn, j, k, p, q, t, t_best, nbp, ret;
+      double big, temp, r, best_ratio, dz_best;
       xassert(csa->beta_st);
       xassert(csa->d_st);
-      /* initial number of eligible basic variables */
+more: /* initial number of eligible basic variables */
       nnn = csa->num;
       /* nothing has been chosen so far */
       csa->p = 0;
-      try = 0;
+      best_ratio = 0.0;
+      try = ret = 0;
 try:  /* choose basic variable xB[p] */
       xassert(nnn > 0);
       try++;
@@ -550,46 +570,76 @@ try:  /* choose basic variable xB[p] */
          spx_eval_trow1(lp, at, rho, trow);
       else
          spx_nt_prod(lp, nt, trow, 1, -1.0, rho);
+      /* big := max(1, |trow[1]|, ..., |trow[n-m]|) */
+      big = 1.0;
+      for (j = 1; j <= n-m; j++)
+      {  temp = trow[j];
+         if (temp < 0.0)
+            temp = - temp;
+         if (big < temp)
+            big = temp;
+      }
       /* choose non-basic variable xN[q] */
       k = head[p]; /* x[k] = xB[p] */
-      if (!csa->harris)
-#if 0 /* 14/III-2016 */
-         q = spy_chuzc_std(lp, d, beta[p] < l[k] ? +1. : -1., trow,
-            csa->tol_piv, .30 * csa->tol_dj, .30 * csa->tol_dj1);
-#else
-      {  double r;
-         xassert(beta[p] < l[k] || beta[p] > u[k]);
-         r = beta[p] < l[k] ? l[k] - beta[p] : u[k] - beta[p];
-         q = spy_chuzc_std(lp, d, r, trow, csa->tol_piv,
+      xassert(beta[p] < l[k] || beta[p] > u[k]);
+      r = beta[p] < l[k] ? l[k] - beta[p] : u[k] - beta[p];
+      if (csa->r_test == GLP_RT_FLIP && try <= 2)
+      {  /* long-step ratio test */
+         /* determine dual objective break-points */
+         nbp = spy_eval_bp(lp, d, r, trow, tol_piv, bp);
+         if (nbp <= 1)
+            goto skip;
+         /* choose appropriate break-point */
+         t_best = 0, dz_best = -DBL_MAX;
+         for (t = 1; t <= nbp; t++)
+         {  if (fabs(trow[bp[t].j]) / big >= MIN_RATIO)
+            {  if (dz_best < bp[t].dz)
+                  t_best = t, dz_best = bp[t].dz;
+            }
+         }
+         if (t_best == 0)
+            goto skip;
+         /* the choice has been made */
+         csa->p = p;
+         memcpy(&csa->trow[1], &trow[1], (n-m) * sizeof(double));
+         csa->q = bp[t_best].j;
+         best_ratio = fabs(trow[bp[t_best].j]) / big;
+#if 0
+         xprintf("num = %d; t_best = %d; dz = %g\n", num, t_best,
+            bp[t_best].dz);
+#endif
+         ret = 1;
+         goto done;
+skip:    ;
+      }
+      if (csa->r_test == GLP_RT_STD)
+      {  /* textbook dual ratio test */
+         q = spy_chuzc_std(lp, d, r, trow, tol_piv,
             .30 * csa->tol_dj, .30 * csa->tol_dj1);
       }
-#endif
       else
-#if 0 /* 14/III-2016 */
-         q = spy_chuzc_harris(lp, d, beta[p] < l[k] ? +1. : -1., trow,
-            csa->tol_piv, .35 * csa->tol_dj, .35 * csa->tol_dj1);
-#else
-      {  double r;
-         xassert(beta[p] < l[k] || beta[p] > u[k]);
-         r = beta[p] < l[k] ? l[k] - beta[p] : u[k] - beta[p];
-         q = spy_chuzc_harris(lp, d, r, trow, csa->tol_piv,
+      {  /* Harris' two-pass dual ratio test */
+         q = spy_chuzc_harris(lp, d, r, trow, tol_piv,
             .35 * csa->tol_dj, .35 * csa->tol_dj1);
       }
-#endif
+      if (q == 0)
+      {  /* dual unboundedness */
+         csa->p = p;
+         memcpy(&csa->trow[1], &trow[1], (n-m) * sizeof(double));
+         csa->q = q;
+         best_ratio = 1.0;
+         goto done;
+      }
       /* either keep previous choice or accept new choice depending on
        * which one is better */
-      if (csa->p == 0 || q == 0 ||
-         fabs(trow[q]) > fabs(csa->trow[csa->q]))
+      if (best_ratio < fabs(trow[q]) / big)
       {  csa->p = p;
          memcpy(&csa->trow[1], &trow[1], (n-m) * sizeof(double));
          csa->q = q;
+         best_ratio = fabs(trow[q]) / big;
       }
-      /* check if current choice is acceptable */
-      if (csa->q == 0 || fabs(csa->trow[csa->q]) >= 0.001)
-         goto done;
-      if (nnn == 1)
-         goto done;
-      if (try == 5)
+      /* check if the current choice is acceptable */
+      if (best_ratio >= MIN_RATIO || nnn == 1 || try == 5)
          goto done;
       /* try to choose other xB[p] and xN[q] */
       /* find xB[p] in the list */
@@ -603,8 +653,34 @@ try:  /* choose basic variable xB[p] */
       /* repeat the choice */
       goto try;
 done: /* the choice has been made */
-      return;
+#if 1 /* FIXME: currently just to avoid badly conditioned basis */
+      if (best_ratio < .001 * MIN_RATIO)
+      {  /* looks like this helps */
+         if (bfd_get_count(lp->bfd) > 0)
+            return -1;
+         /* didn't help; last chance to improve the choice */
+         if (tol_piv == csa->tol_piv)
+         {  tol_piv *= 1000.;
+            goto more;
+         }
+      }
+#endif
+#if 1 /* FIXME */
+      if (ret)
+      {  /* invalidate basic solution components */
+         csa->beta_st = csa->d_st = 0;
+         /* set double-bounded non-basic variables to opposite bounds
+          * for all break-points preceding the chosen one */
+         for (t = 1; t < t_best; t++)
+         {  k = head[m + bp[t].j];
+            xassert(-DBL_MAX < l[k] && l[k] < u[k] && u[k] < +DBL_MAX);
+            lp->flag[bp[t].j] = !(lp->flag[bp[t].j]);
+         }
+      }
+#endif
+      return ret;
 }
+#endif
 
 /***********************************************************************
 *  display - display search progress
@@ -984,7 +1060,14 @@ loop: /* main loop starts here */
          }
       }
       /* choose xB[p] and xN[q] */
+#if 0 /* 17/III-2016 */
       choose_pivot(csa);
+#else
+      if (choose_pivot(csa) < 0)
+      {  lp->valid = 0;
+         goto loop;
+      }
+#endif
       /* check for dual unboundedness */
       if (csa->q == 0)
       {  if (csa->beta_st != 1)
@@ -1021,10 +1104,19 @@ loop: /* main loop starts here */
       /* update values of basic variables for adjacent basis */
       k = head[csa->p]; /* x[k] = xB[p] */
       p_flag = (l[k] != u[k] && beta[csa->p] > u[k]);
+#if 0 /* 16/III-2016 */
       spx_update_beta(lp, beta, csa->p, p_flag, csa->q, tcol);
       csa->beta_st = 2;
+#else
+      /* primal solution may be invalidated due to long step */
+      if (csa->beta_st)
+      {  spx_update_beta(lp, beta, csa->p, p_flag, csa->q, tcol);
+         csa->beta_st = 2;
+      }
+#endif
       /* update reduced costs of non-basic variables for adjacent
        * basis */
+#if 0 /* 16/III-2016 */
       if (spx_update_d(lp, d, csa->p, csa->q, trow, tcol) <= 1e-9)
       {  /* successful updating */
          csa->d_st = 2;
@@ -1033,6 +1125,15 @@ loop: /* main loop starts here */
       {  /* new reduced costs are inaccurate */
          csa->d_st = 0;
       }
+#else
+      /* dual solution may be invalidated due to long step */
+      if (csa->d_st)
+      {  if (spx_update_d(lp, d, csa->p, csa->q, trow, tcol) <= 1e-9)
+            csa->d_st = 2; /* successful updating */
+         else
+            csa->d_st = 0; /* new reduced costs are inaccurate */
+      }
+#endif
       /* update steepest edge weights for adjacent basis, if used */
       if (se != NULL)
       {  if (refct > 0)
@@ -1057,7 +1158,9 @@ loop: /* main loop starts here */
       /* change current basis header to adjacent one */
       spx_change_basis(lp, csa->p, p_flag, csa->q);
       /* and update factorization of the basis matrix */
+#if 0 /* 16/III-2016 */
       if (csa->p > 0)
+#endif
          spx_update_invb(lp, csa->p, head[csa->p]);
       /* dual simplex iteration complete */
       csa->it_cnt++;
@@ -1134,11 +1237,15 @@ int spy_dual(glp_prob *P, const glp_smcp *parm)
       csa->list = talloc(1+csa->lp->m, int);
       csa->trow = talloc(1+csa->lp->n-csa->lp->m, double);
       csa->tcol = talloc(1+csa->lp->m, double);
+#if 1 /* 16/III-2016 */
+      csa->bp = NULL;
+#endif
       csa->work = talloc(1+csa->lp->m, double);
       csa->work1 = talloc(1+csa->lp->n-csa->lp->m, double);
       /* initialize control parameters */
       csa->msg_lev = parm->msg_lev;
       csa->dualp = (parm->meth == GLP_DUALP);
+#if 0 /* 16/III-2016 */
       switch (parm->r_test)
       {  case GLP_RT_STD:
             csa->harris = 0;
@@ -1149,6 +1256,19 @@ int spy_dual(glp_prob *P, const glp_smcp *parm)
          default:
             xassert(parm != parm);
       }
+#else
+      switch (parm->r_test)
+      {  case GLP_RT_STD:
+         case GLP_RT_HAR:
+            break;
+         case GLP_RT_FLIP:
+            csa->bp = talloc(1+csa->lp->n-csa->lp->m, SPYBP);
+            break;
+         default:
+            xassert(parm != parm);
+      }
+      csa->r_test = parm->r_test;
+#endif
       csa->tol_bnd = parm->tol_bnd;
       csa->tol_bnd1 = .001 * parm->tol_bnd;
       csa->tol_dj = parm->tol_dj;
@@ -1232,6 +1352,10 @@ skip: /* deallocate working objects and arrays */
          spy_free_se(csa->lp, csa->se);
       tfree(csa->list);
       tfree(csa->trow);
+#if 1 /* 16/III-2016 */
+      if (csa->bp != NULL)
+         tfree(csa->bp);
+#endif
       tfree(csa->tcol);
       tfree(csa->work);
       tfree(csa->work1);

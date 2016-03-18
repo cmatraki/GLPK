@@ -60,6 +60,12 @@ struct SPYBP
        * at this break point */
 };
 
+#define spy_eval_bp _glp_spy_eval_bp
+int spy_eval_bp(SPXLP *lp, const double d[/*1+n-m*/],
+      double r, const double trow[/*1+n-m*/], double tol_piv,
+      SPYBP bp[/*1+n-m*/]);
+/* determine dual objective function break-points */
+
 #endif
 
 /* eof */

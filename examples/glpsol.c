@@ -321,6 +321,10 @@ static void print_help(const char *my_name)
          "fault)\n");
       xprintf("   --norelax         use standard \"textbook\" ratio tes"
          "t\n");
+#if 1 /* 16/III-2016 */
+      xprintf("   --flip            use long-step (flip-flop) ratio tes"
+         "t\n");
+#endif
       xprintf("   --presol          use presolver (default; assumes --s"
          "cale and --adv)\n");
       xprintf("   --nopresol        do not use presolver\n");
@@ -768,6 +772,12 @@ static int parse_cmdline(struct csa *csa, int argc, char *argv[])
             csa->smcp.r_test = GLP_RT_HAR;
          else if (p("--norelax"))
             csa->smcp.r_test = GLP_RT_STD;
+#if 1 /* 16/III-2016 */
+         else if (p("--flip"))
+         {  csa->smcp.r_test = GLP_RT_FLIP;
+            csa->iocp.flip = GLP_ON;
+         }
+#endif
          else if (p("--presol"))
             csa->smcp.presolve = GLP_ON;
          else if (p("--nopresol"))
