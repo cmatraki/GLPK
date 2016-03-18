@@ -3,7 +3,7 @@
 /***********************************************************************
 *  This code is part of GLPK (GNU Linear Programming Kit).
 *
-*  Copyright (C) 2015 Andrew Makhorin, Department for Applied
+*  Copyright (C) 2015-2016 Andrew Makhorin, Department for Applied
 *  Informatics, Moscow Aviation Institute, Moscow, Russia. All rights
 *  reserved. E-mail: <mao@gnu.org>.
 *
@@ -511,6 +511,9 @@ static void choose_pivot(struct csa *csa)
       int m = lp->m;
       int n = lp->n;
       double *l = lp->l;
+#if 1 /* 14/III-2016 */
+      double *u = lp->u;
+#endif
       int *head = lp->head;
       SPXAT *at = csa->at;
       SPXNT *nt = csa->nt;
@@ -550,11 +553,29 @@ try:  /* choose basic variable xB[p] */
       /* choose non-basic variable xN[q] */
       k = head[p]; /* x[k] = xB[p] */
       if (!csa->harris)
+#if 0 /* 14/III-2016 */
          q = spy_chuzc_std(lp, d, beta[p] < l[k] ? +1. : -1., trow,
             csa->tol_piv, .30 * csa->tol_dj, .30 * csa->tol_dj1);
+#else
+      {  double r;
+         xassert(beta[p] < l[k] || beta[p] > u[k]);
+         r = beta[p] < l[k] ? l[k] - beta[p] : u[k] - beta[p];
+         q = spy_chuzc_std(lp, d, r, trow, csa->tol_piv,
+            .30 * csa->tol_dj, .30 * csa->tol_dj1);
+      }
+#endif
       else
+#if 0 /* 14/III-2016 */
          q = spy_chuzc_harris(lp, d, beta[p] < l[k] ? +1. : -1., trow,
             csa->tol_piv, .35 * csa->tol_dj, .35 * csa->tol_dj1);
+#else
+      {  double r;
+         xassert(beta[p] < l[k] || beta[p] > u[k]);
+         r = beta[p] < l[k] ? l[k] - beta[p] : u[k] - beta[p];
+         q = spy_chuzc_harris(lp, d, r, trow, csa->tol_piv,
+            .35 * csa->tol_dj, .35 * csa->tol_dj1);
+      }
+#endif
       /* either keep previous choice or accept new choice depending on
        * which one is better */
       if (csa->p == 0 || q == 0 ||

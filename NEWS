@@ -1,3 +1,11 @@
+GLPK 4.59.1 (release date: Mar 15, 2016)
+
+        This is a NON-OFFICIAL bug-fix release.
+
+        The header sql.h was renamed to avoid conflicts with standard
+        ODBC headers. Thanks to Noli Sicad <nsicad@gmail.com> for bug
+        report.
+
 GLPK 4.59 (release date: Mar 11, 2016)
 
         This is a maintainer release.

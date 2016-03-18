@@ -158,7 +158,7 @@ am_libglpk_la_OBJECTS = libglpk_la-bfd.lo libglpk_la-bfx.lo \
 	libglpk_la-wclique.lo libglpk_la-wclique1.lo \
 	libglpk_la-mpl1.lo libglpk_la-mpl2.lo libglpk_la-mpl3.lo \
 	libglpk_la-mpl4.lo libglpk_la-mpl5.lo libglpk_la-mpl6.lo \
-	libglpk_la-sql.lo libglpk_la-proxy.lo libglpk_la-proxy1.lo \
+	libglpk_la-mplsql.lo libglpk_la-proxy.lo libglpk_la-proxy1.lo \
 	libglpk_la-spxat.lo libglpk_la-spxchuzc.lo \
 	libglpk_la-spxchuzr.lo libglpk_la-spxlp.lo libglpk_la-spxnt.lo \
 	libglpk_la-spxprim.lo libglpk_la-spxprob.lo \
@@ -330,7 +330,7 @@ libglpk_la_CPPFLAGS = \
 -I$(srcdir)/zlib
 
 libglpk_la_LDFLAGS = \
--version-info 40:0:0 \
+-version-info 40:1:0 \
 -export-symbols-regex '^glp_*' \
 ${NOUNDEFINED}
 
@@ -492,7 +492,7 @@ mpl/mpl3.c \
 mpl/mpl4.c \
 mpl/mpl5.c \
 mpl/mpl6.c \
-mpl/sql.c \
+mpl/mplsql.c \
 proxy/proxy.c \
 proxy/proxy1.c \
 simplex/spxat.c \
@@ -714,6 +714,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglpk_la-mpl4.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglpk_la-mpl5.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglpk_la-mpl6.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglpk_la-mplsql.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglpk_la-mps.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglpk_la-mygmp.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglpk_la-netgen.Plo@am__quote@
@@ -753,7 +754,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglpk_la-spychuzc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglpk_la-spychuzr.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglpk_la-spydual.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglpk_la-sql.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglpk_la-stdout.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglpk_la-str2int.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libglpk_la-str2num.Plo@am__quote@
@@ -1904,12 +1904,12 @@ libglpk_la-mpl6.lo: mpl/mpl6.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libglpk_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libglpk_la-mpl6.lo `test -f 'mpl/mpl6.c' || echo '$(srcdir)/'`mpl/mpl6.c
 
-libglpk_la-sql.lo: mpl/sql.c
-@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libglpk_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libglpk_la-sql.lo -MD -MP -MF $(DEPDIR)/libglpk_la-sql.Tpo -c -o libglpk_la-sql.lo `test -f 'mpl/sql.c' || echo '$(srcdir)/'`mpl/sql.c
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/libglpk_la-sql.Tpo $(DEPDIR)/libglpk_la-sql.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='mpl/sql.c' object='libglpk_la-sql.lo' libtool=yes @AMDEPBACKSLASH@
+libglpk_la-mplsql.lo: mpl/mplsql.c
+@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libglpk_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libglpk_la-mplsql.lo -MD -MP -MF $(DEPDIR)/libglpk_la-mplsql.Tpo -c -o libglpk_la-mplsql.lo `test -f 'mpl/mplsql.c' || echo '$(srcdir)/'`mpl/mplsql.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/libglpk_la-mplsql.Tpo $(DEPDIR)/libglpk_la-mplsql.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='mpl/mplsql.c' object='libglpk_la-mplsql.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libglpk_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libglpk_la-sql.lo `test -f 'mpl/sql.c' || echo '$(srcdir)/'`mpl/sql.c
+@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libglpk_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libglpk_la-mplsql.lo `test -f 'mpl/mplsql.c' || echo '$(srcdir)/'`mpl/mplsql.c
 
 libglpk_la-proxy.lo: proxy/proxy.c
 @am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libglpk_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libglpk_la-proxy.lo -MD -MP -MF $(DEPDIR)/libglpk_la-proxy.Tpo -c -o libglpk_la-proxy.lo `test -f 'proxy/proxy.c' || echo '$(srcdir)/'`proxy/proxy.c

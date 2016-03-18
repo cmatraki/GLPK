@@ -180,7 +180,7 @@ OBJSET = \
 ..\src\mpl\mpl4.obj \
 ..\src\mpl\mpl5.obj \
 ..\src\mpl\mpl6.obj \
-..\src\mpl\sql.obj \
+..\src\mpl\mplsql.obj \
 ..\src\proxy\proxy.obj \
 ..\src\proxy\proxy1.obj \
 ..\src\simplex\spxat.obj \

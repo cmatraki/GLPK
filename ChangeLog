@@ -1,3 +1,17 @@
+Tue Mar 15 12:00:00 2016 Andrew Makhorin <mao@gnu.org>
+
+        * GLPK 4.59.1 (40:1:0) has been released.
+
+        NOTE: THIS IS A NON-OFFICIAL BUG-FIX RELEASE.
+
+        * src/simplex/mpl6.c, src/simplex/sql.c, src/simplex/sql.h
+        The header sql.h was renamed to avoid conflicts with standard
+        ODBC headers. Thanks to Noli Sicad <nsicad@gmail.com> for bug
+        report.
+
+        * src/simplex/spychuzc.c, src/simplex/spychuzc.h
+        Minor changes were made.
+
 Fri Mar 11 12:00:00 2016 Andrew Makhorin <mao@gnu.org>
 
         * GLPK 4.59 (40:0:0) has been released.

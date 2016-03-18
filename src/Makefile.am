@@ -20,7 +20,7 @@ libglpk_la_CPPFLAGS = \
 -I$(srcdir)/zlib
 
 libglpk_la_LDFLAGS = \
--version-info 40:0:0 \
+-version-info 40:1:0 \
 -export-symbols-regex '^glp_*' \
 ${NOUNDEFINED}
 
@@ -182,7 +182,7 @@ mpl/mpl3.c \
 mpl/mpl4.c \
 mpl/mpl5.c \
 mpl/mpl6.c \
-mpl/sql.c \
+mpl/mplsql.c \
 proxy/proxy.c \
 proxy/proxy1.c \
 simplex/spxat.c \

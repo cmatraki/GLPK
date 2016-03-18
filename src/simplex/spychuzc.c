@@ -3,7 +3,7 @@
 /***********************************************************************
 *  This code is part of GLPK (GNU Linear Programming Kit).
 *
-*  Copyright (C) 2015 Andrew Makhorin, Department for Applied
+*  Copyright (C) 2015-2016 Andrew Makhorin, Department for Applied
 *  Informatics, Moscow Aviation Institute, Moscow, Russia. All rights
 *  reserved. E-mail: <mao@gnu.org>.
 *
@@ -34,12 +34,25 @@
 *  array locations d[1], ..., d[n-m]. Note that d[j] is a value of dual
 *  basic variable lambdaN[j] in the current basis.
 *
+#if 0 (* 14/III-2016 *)
 *  The parameter s specifies the sign of bound violation for basic
 *  variable xB[p] chosen: s = +1.0 means that xB[p] violates its lower
 *  bound, so dual non-basic variable lambdaB[p] = lambda^+B[p]
 *  increases, and s = -1.0 means that xB[p] violates its upper bound,
 *  so dual non-basic variable lambdaB[p] = lambda^-B[p] decreases.
 *  (Thus, the dual ray parameter theta = s * lambdaB[p] >= 0.)
+#else
+*  The parameter r specifies the bound violation for basic variable
+*  xB[p] chosen:
+*
+*  r = lB[p] - beta[p] > 0 means that xB[p] violates its lower bound,
+*  so dual non-basic variable lambdaB[p] = lambda^+B[p] increases; and
+*
+*  r = uB[p] - beta[p] < 0 means that xB[p] violates its upper bound,
+*  so dual non-basic variable lambdaB[p] = lambda^-B[p] decreases.
+*
+*  (Note that r is the dual reduced cost of lambdaB[p].)
+#endif
 *
 *  Elements of p-th simplex table row t[p] = (t[p,j]) corresponding
 *  to basic variable xB[p] should be placed in the array locations
@@ -64,7 +77,11 @@
 *  unlimitedly, the routine returns zero. */
 
 int spy_chuzc_std(SPXLP *lp, const double d[/*1+n-m*/],
+#if 0 /* 14/III-2016 */
       double s, const double trow[/*1+n-m*/], double tol_piv,
+#else
+      double r, const double trow[/*1+n-m*/], double tol_piv,
+#endif
       double tol, double tol1)
 {     int m = lp->m;
       int n = lp->n;
@@ -75,7 +92,13 @@ int spy_chuzc_std(SPXLP *lp, const double d[/*1+n-m*/],
       char *flag = lp->flag;
       int j, k, q;
       double alfa, biga, delta, teta, teta_min;
+#if 0 /* 14/III-2016 */
       xassert(s == +1.0 || s == -1.0);
+#else
+      double s;
+      xassert(r != 0.0);
+      s = (r > 0.0 ? +1.0 : -1.0);
+#endif
       /* nothing is chosen so far */
       q = 0, teta_min = DBL_MAX, biga = 0.0;
       /* walk thru the list of non-basic variables */
@@ -129,7 +152,11 @@ int spy_chuzc_std(SPXLP *lp, const double d[/*1+n-m*/],
 *  cN[j] is objective coefficient at non-basic variable xN[j]. */
 
 int spy_chuzc_harris(SPXLP *lp, const double d[/*1+n-m*/],
+#if 0 /* 14/III-2016 */
       double s, const double trow[/*1+n-m*/], double tol_piv,
+#else
+      double r, const double trow[/*1+n-m*/], double tol_piv,
+#endif
       double tol, double tol1)
 {     int m = lp->m;
       int n = lp->n;
@@ -140,7 +167,13 @@ int spy_chuzc_harris(SPXLP *lp, const double d[/*1+n-m*/],
       char *flag = lp->flag;
       int j, k, q;
       double alfa, biga, delta, teta, teta_min;
+#if 0 /* 14/III-2016 */
       xassert(s == +1.0 || s == -1.0);
+#else
+      double s;
+      xassert(r != 0.0);
+      s = (r > 0.0 ? +1.0 : -1.0);
+#endif
       /*--------------------------------------------------------------*/
       /* first pass: determine teta_min for relaxed bounds            */
       /*--------------------------------------------------------------*/
