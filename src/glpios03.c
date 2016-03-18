@@ -689,6 +689,77 @@ done: glp_delete_prob(lp);
 
 /**********************************************************************/
 
+#if 1 /* 08/III-2016 */
+static void gmi_gen(glp_tree *T)
+{     /* generate Gomory's mixed integer cuts */
+      glp_prob *P, *pool;
+      P = T->mip;
+      pool = glp_create_prob();
+      glp_add_cols(pool, P->n);
+      glp_gmi_gen(P, pool, 50);
+      if (pool->m > 0)
+      {  int i, len, *ind;
+         double *val;
+         ind = xcalloc(1+P->n, sizeof(int));
+         val = xcalloc(1+P->n, sizeof(double));
+         for (i = 1; i <= pool->m; i++)
+         {  len = glp_get_mat_row(pool, i, ind, val);
+            glp_ios_add_row(T, NULL, GLP_RF_GMI, 0, len, ind, val,
+               GLP_LO, pool->row[i]->lb);
+         }
+         xfree(ind);
+         xfree(val);
+      }
+      glp_delete_prob(pool);
+      return;
+}
+#endif
+
+#if 1 /* 08/III-2016 */
+static void mir_gen(glp_tree *T)
+{     /* generate mixed integer rounding cuts */
+      glp_prob *P, *pool;
+      P = T->mip;
+      pool = glp_create_prob();
+      glp_add_cols(pool, P->n);
+      glp_mir_gen(P, T->mir_gen, pool);
+      if (pool->m > 0)
+      {  int i, len, *ind;
+         double *val;
+         ind = xcalloc(1+P->n, sizeof(int));
+         val = xcalloc(1+P->n, sizeof(double));
+         for (i = 1; i <= pool->m; i++)
+         {  len = glp_get_mat_row(pool, i, ind, val);
+            glp_ios_add_row(T, NULL, GLP_RF_MIR, 0, len, ind, val,
+               GLP_UP, pool->row[i]->ub);
+         }
+         xfree(ind);
+         xfree(val);
+      }
+      glp_delete_prob(pool);
+      return;
+}
+#endif
+
+#if 1 /* 08/III-2016 */
+static void clq_gen(glp_tree *T, glp_cfg *G)
+{     /* generate clique cut from conflict graph */
+      glp_prob *P = T->mip;
+      int n = P->n;
+      int len, *ind;
+      double *val;
+      ind = talloc(1+n, int);
+      val = talloc(1+n, double);
+      len = glp_clq_cut(T->mip, G, ind, val);
+      if (len > 0)
+         glp_ios_add_row(T, NULL, GLP_RF_CLQ, 0, len, ind, val, GLP_UP,
+            val[0]);
+      tfree(ind);
+      tfree(val);
+      return;
+}
+#endif
+
 static void generate_cuts(glp_tree *T)
 {     /* generate generic cuts with built-in generators */
       if (!(T->parm->mir_cuts == GLP_ON ||
@@ -711,11 +782,19 @@ static void generate_cuts(glp_tree *T)
       /* generate and add to POOL all cuts violated by x* */
       if (T->parm->gmi_cuts == GLP_ON)
       {  if (T->curr->changed < 7)
+#if 0 /* 08/III-2016 */
             ios_gmi_gen(T);
+#else
+            gmi_gen(T);
+#endif
       }
       if (T->parm->mir_cuts == GLP_ON)
       {  xassert(T->mir_gen != NULL);
+#if 0 /* 08/III-2016 */
          ios_mir_gen(T, T->mir_gen);
+#else
+         mir_gen(T);
+#endif
       }
       if (T->parm->cov_cuts == GLP_ON)
       {  /* cover cuts works well along with mir cuts */
@@ -731,7 +810,11 @@ static void generate_cuts(glp_tree *T)
          {  if (T->curr->level == 0 && T->curr->changed < 500 ||
                 T->curr->level >  0 && T->curr->changed < 50)
 #endif
+#if 0 /* 08/III-2016 */
                ios_clq_gen(T, T->clq_gen);
+#else
+               clq_gen(T, T->clq_gen);
+#endif
          }
       }
 done: return;
@@ -942,7 +1025,11 @@ loop: /* main loop starts here */
          {  if (T->parm->msg_lev >= GLP_MSG_ALL)
                xprintf("MIR cuts enabled\n");
             xassert(T->mir_gen == NULL);
+#if 0 /* 06/III-2016 */
             T->mir_gen = ios_mir_init(T);
+#else
+            T->mir_gen = glp_mir_init(T->mip);
+#endif
          }
          if (T->parm->cov_cuts == GLP_ON)
          {  if (T->parm->msg_lev >= GLP_MSG_ALL)
@@ -952,7 +1039,11 @@ loop: /* main loop starts here */
          {  xassert(T->clq_gen == NULL);
             if (T->parm->msg_lev >= GLP_MSG_ALL)
                xprintf("Clique cuts enabled\n");
+#if 0 /* 08/III-2016 */
             T->clq_gen = ios_clq_init(T);
+#else
+            T->clq_gen = glp_cfg_init(T->mip);
+#endif
          }
       }
 #if 1 /* 18/VII-2013 */
@@ -1399,9 +1490,17 @@ done: /* display progress of the search on exit from the solver */
       if (T->parm->msg_lev >= GLP_MSG_ON)
          show_progress(T, 0);
       if (T->mir_gen != NULL)
+#if 0 /* 06/III-2016 */
          ios_mir_term(T->mir_gen), T->mir_gen = NULL;
+#else
+         glp_mir_free(T->mir_gen), T->mir_gen = NULL;
+#endif
       if (T->clq_gen != NULL)
+#if 0 /* 08/III-2016 */
          ios_clq_term(T->clq_gen), T->clq_gen = NULL;
+#else
+         glp_cfg_free(T->clq_gen), T->clq_gen = NULL;
+#endif
       /* return to the calling program */
       return ret;
 }
