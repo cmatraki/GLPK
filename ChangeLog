@@ -1,3 +1,16 @@
+Mon Mar 28 12:00:00 2016 Andrew Makhorin <mao@gnu.org>
+
+        * GLPK 4.60 (40:1:0) has been released.
+
+        * src/glpk.h
+        Declarations of all non-documented API routines were hidden by
+        #ifdef GLP_UNDOC / #endif.
+
+        src/simplex/spydual.c
+        An experimental feature (objective coefficient perturbation)
+        to improve numerical stabilty and avoid cycling was included in
+        the dual simplex solver.
+
 Fri Mar 18 12:00:00 2016 Andrew Makhorin <mao@gnu.org>
 
         * GLPK 4.59.2 (40:1:0) has been released.

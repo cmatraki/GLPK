@@ -236,6 +236,6 @@ glpsol.exe: ..\examples\glpsol.obj glpk.lib
 
 check: glpsol.exe
         .\glpsol.exe --version
-        .\glpsol.exe --mps ..\examples\plan.mps
+        .\glpsol.exe --mps ..\examples\murtagh.mps --max
 
 ## eof ##

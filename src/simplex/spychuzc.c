@@ -252,6 +252,7 @@ int spy_chuzc_harris(SPXLP *lp, const double d[/*1+n-m*/],
 done: return q;
 }
 
+#if 0 /* 23/III-2016 */
 /***********************************************************************
 *  spy_eval_bp - determine dual objective function break-points
 *
@@ -393,6 +394,174 @@ int spy_eval_bp(SPXLP *lp, const double d[/*1+n-m*/],
          }
       }
 done: return num;
+}
+#endif
+
+/***********************************************************************
+*  spy_ls_eval_bp - determine dual objective function break-points
+*
+*  This routine determines the dual objective function break-points.
+*
+*  The parameters lp, d, r, trow, and tol_piv have the same meaning as
+*  for the routine spx_chuzc_std (see above).
+*
+*  The routine stores the break-points determined to the array elements
+*  bp[1], ..., bp[nbp] in *arbitrary* order, where 0 <= nbp <= n-m is
+*  the number of break-points returned by the routine on exit. */
+
+int spy_ls_eval_bp(SPXLP *lp, const double d[/*1+n-m*/],
+      double r, const double trow[/*1+n-m*/], double tol_piv,
+      SPYBP bp[/*1+n-m*/])
+{     int m = lp->m;
+      int n = lp->n;
+      double *l = lp->l;
+      double *u = lp->u;
+      int *head = lp->head;
+      char *flag = lp->flag;
+      int j, k, t, nnn, nbp;
+      double s, alfa, teta, teta_max;
+      xassert(r != 0.0);
+      s = (r > 0.0 ? +1.0 : -1.0);
+      /* build the list of all dual basic variables lambdaN[j] that
+       * can reach zero on increasing the ray parameter teta >= 0 */
+      nnn = 0, teta_max = DBL_MAX;
+      /* walk thru the list of non-basic variables */
+      for (j = 1; j <= n-m; j++)
+      {  k = head[m+j]; /* x[k] = xN[j] */
+         /* if xN[j] is fixed variable, skip it */
+         if (l[k] == u[k])
+            continue;
+         alfa = s * trow[j];
+         if (alfa >= +tol_piv && !flag[j])
+         {  /* xN[j] is either free or has its lower bound active, so
+             * lambdaN[j] = d[j] >= 0 decreases down to zero */
+            /* determine teta[j] on which lambdaN[j] reaches zero */
+            teta = (d[j] < 0.0 ? 0.0 : d[j] / alfa);
+            /* if xN[j] has no upper bound, lambdaN[j] cannot become
+             * negative and thereby blocks further increasing teta */
+            if (u[k] == +DBL_MAX && teta_max > teta)
+               teta_max = teta;
+         }
+         else if (alfa <= -tol_piv && (l[k] == -DBL_MAX || flag[j]))
+         {  /* xN[j] is either free or has its upper bound active, so
+             * lambdaN[j] = d[j] <= 0 increases up to zero */
+            /* determine teta[j] on which lambdaN[j] reaches zero */
+            teta = (d[j] > 0.0 ? 0.0 : d[j] / alfa);
+            /* if xN[j] has no lower bound, lambdaN[j] cannot become
+             * positive and thereby blocks further increasing teta */
+            if (l[k] == -DBL_MAX && teta_max > teta)
+               teta_max = teta;
+         }
+         else
+         {  /* lambdaN[j] cannot reach zero on increasing teta */
+            continue;
+         }
+         /* add lambdaN[j] to the list */
+         nnn++;
+         bp[nnn].j = j;
+         bp[nnn].teta = teta;
+      }
+      /* remove from the list all dual basic variables lambdaN[j], for
+       * which teta[j] > teta_max */
+      nbp = 0;
+      for (t = 1; t <= nnn; t++)
+      {  if (bp[t].teta <= teta_max + 1e-6)
+         {  nbp++;
+            bp[nbp].j = bp[t].j;
+            bp[nbp].teta = bp[t].teta;
+         }
+      }
+      return nbp;
+}
+
+/***********************************************************************
+*  spy_ls_select_bp - select and process dual objective break-points
+*
+*  This routine selects a next portion of the dual objective function
+*  break-points and processes them.
+*
+*  On entry to the routine it is assumed that break-points bp[1], ...,
+*  bp[num] are already processed, and slope is the dual objective slope
+*  to the right of the last processed break-point bp[num]. (Initially,
+*  when num = 0, slope should be specified as fabs(r), where r has the
+*  same meaning as above.)
+*
+*  The routine selects break-points among bp[num+1], ..., bp[nbp], for
+*  which teta <= teta_lim, and moves these break-points to the array
+*  elements bp[num+1], ..., bp[num1], where num <= num1 <= n-m is the
+*  new number of processed break-points returned by the routine on
+*  exit. Then the routine sorts these break-points by ascending teta
+*  and computes the change of the dual objective function relative to
+*  its value at teta = 0.
+*
+*  On exit the routine also replaces the parameter slope with a new
+*  value that corresponds to the new last break-point bp[num1]. */
+
+static int fcmp(const void *v1, const void *v2)
+{     const SPYBP *p1 = v1, *p2 = v2;
+      if (p1->teta < p2->teta)
+         return -1;
+      else if (p1->teta > p2->teta)
+         return +1;
+      else
+         return 0;
+}
+
+int spy_ls_select_bp(SPXLP *lp, const double trow[/*1+n-m*/],
+      int nbp, SPYBP bp[/*1+n-m*/], int num, double *slope, double
+      teta_lim)
+{     int m = lp->m;
+      int n = lp->n;
+      double *l = lp->l;
+      double *u = lp->u;
+      int *head = lp->head;
+      int j, k, t, num1;
+      double teta, dz;
+      xassert(0 <= num && num <= nbp && nbp <= n-m);
+      /* select a new portion of break-points */
+      num1 = num;
+      for (t = num+1; t <= nbp; t++)
+      {  if (bp[t].teta <= teta_lim)
+         {  /* move break-point to the beginning of the new portion */
+            num1++;
+            j = bp[num1].j, teta = bp[num1].teta;
+            bp[num1].j = bp[t].j, bp[num1].teta = bp[t].teta;
+            bp[t].j = j, bp[t].teta = teta;
+         }
+      }
+      /* sort new break-points bp[num+1], ..., bp[num1] by ascending
+       * the ray parameter teta */
+      if (num1 - num > 1)
+         qsort(&bp[num+1], num1 - num, sizeof(SPYBP), fcmp);
+      /* calculate the dual objective change at the new break-points */
+      for (t = num+1; t <= num1; t++)
+      {  /* calculate the dual objective change relative to its value
+          * at break-point bp[t-1] */
+         if (*slope == -DBL_MAX)
+            dz = -DBL_MAX;
+         else
+            dz = (*slope) *
+               (bp[t].teta - (t == 1 ? 0.0 : bp[t-1].teta));
+         /* calculate the dual objective change relative to its value
+          * at teta = 0 */
+         if (dz == -DBL_MAX)
+            bp[t].dz = -DBL_MAX;
+         else
+            bp[t].dz = (t == 1 ? 0.0 : bp[t-1].dz) + dz;
+         /* calculate a new slope of the dual objective to the right of
+          * the current break-point bp[t] */
+         if (*slope != -DBL_MAX)
+         {  j = bp[t].j;
+            k = head[m+j]; /* x[k] = xN[j] */
+            if (l[k] == -DBL_MAX || u[k] == +DBL_MAX)
+               *slope = -DBL_MAX; /* blocking break-point reached */
+            else
+            {  xassert(l[k] < u[k]);
+               *slope -= fabs(trow[j]) * (u[k] - l[k]);
+            }
+         }
+      }
+      return num1;
 }
 
 /* eof */
