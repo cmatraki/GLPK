@@ -1,6 +1,6 @@
-Mon Mar 28 12:00:00 2016 Andrew Makhorin <mao@gnu.org>
+Fri Apr 01 12:00:00 2016 Andrew Makhorin <mao@gnu.org>
 
-        * GLPK 4.60 (40:1:0) has been released.
+        * GLPK 4.60 (41:0:1) has been released.
 
         * src/glpk.h
         Declarations of all non-documented API routines were hidden by
@@ -10,6 +10,9 @@ Mon Mar 28 12:00:00 2016 Andrew Makhorin <mao@gnu.org>
         An experimental feature (objective coefficient perturbation)
         to improve numerical stabilty and avoid cycling was included in
         the dual simplex solver.
+
+        This release also includes all the changes made in 4.59.2 and
+        4.59.1 non-official test releases (see below).
 
 Fri Mar 18 12:00:00 2016 Andrew Makhorin <mao@gnu.org>
 

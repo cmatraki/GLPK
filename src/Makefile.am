@@ -20,7 +20,7 @@ libglpk_la_CPPFLAGS = \
 -I$(srcdir)/zlib
 
 libglpk_la_LDFLAGS = \
--version-info 40:1:0 \
+-version-info 41:0:1 \
 -export-symbols-regex '^glp_*' \
 ${NOUNDEFINED}
 
@@ -127,6 +127,7 @@ bflib/btf.c \
 bflib/btfint.c \
 bflib/fhv.c \
 bflib/fhvint.c \
+bflib/fvs.c \
 bflib/ifu.c \
 bflib/luf.c \
 bflib/lufint.c \
