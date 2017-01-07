@@ -24,6 +24,7 @@
 
 #include "env.h"
 #include "glpios.h"
+#include "bfd.h"
 
 /***********************************************************************
 *  NAME
@@ -405,6 +406,14 @@ struct csa
          over all up_cnt[j] subproblems */
       glp_prob *work;
       /* working problem to avoid unnecessary initializations */
+      BFD *bfd;
+      /* factorization copy to avoid identical factorizations*/
+      int *head;
+      /* basis header copy to avoid identical factorizations */
+      int *r_bind;
+      /* copy of row bind values to avoid identical factorizations */
+      int *c_bind;
+      /* copy of column bind values to avoid identical factorizations */
 };
 
 void *ios_pcost_init(glp_tree *tree)
@@ -421,6 +430,7 @@ void *ios_pcost_init(glp_tree *tree)
          csa->dn_sum[j] = csa->up_sum[j] = 0.0;
       }
       csa->work = NULL;
+      csa->bfd = NULL;
       return csa;
 }
 
@@ -443,6 +453,20 @@ static double eval_degrad(glp_tree *T, int j, double bnd)
          lp = glp_create_prob();
          glp_copy_prob(lp, P, 0);
          csa->work = lp;
+         /* factorize and store */
+         glp_factorize(lp);
+         csa->bfd = bfd_create_it();
+         bfd_copy(csa->bfd, lp->bfd);
+         /* copy factorization */
+         csa->head = xcalloc(1+P->m, sizeof(int));
+         csa->c_bind = xcalloc(1+P->n, sizeof(int));
+         csa->r_bind = xcalloc(1+P->m, sizeof(int));
+         for (i = 1; i <= P->m; i++)
+         {  csa->r_bind[i] = lp->row[i]->bind;
+            csa->head[i] = lp->head[i];
+         }
+         for (jjj = 1; jjj <= P->n; jjj++)
+            csa->c_bind[jjj] = lp->col[jjj]->bind;
       }
       else
       {  /* restore original values */
@@ -450,13 +474,17 @@ static double eval_degrad(glp_tree *T, int j, double bnd)
          {  lp->row[i]->stat = P->row[i]->stat;
             lp->row[i]->prim = P->row[i]->prim;
             lp->row[i]->dual = P->row[i]->dual;
+            lp->row[i]->bind = csa->r_bind[i];
+            lp->head[i] = csa->head[i];
          }
          for (jjj = 1; jjj <= P->n; jjj++)
          {  lp->col[jjj]->stat = P->col[jjj]->stat;
             lp->col[jjj]->prim = P->col[jjj]->prim;
             lp->col[jjj]->dual = P->col[jjj]->dual;
+            lp->col[jjj]->bind = csa->c_bind[jjj];
          }
-         lp->valid = 0;
+         bfd_copy(lp->bfd, csa->bfd);
+         lp->valid = 1;
       }
       /* fix column x[j] at specified value */
       glp_set_col_bnds(lp, j, GLP_FX, bnd, bnd);
@@ -687,6 +715,11 @@ done: *_next = sel;
       {  /* clean up working problem for next round */
          glp_delete_prob(csa->work);
          csa->work = NULL;
+         /* clean up stored factorization for next round */
+         bfd_delete_it(csa->bfd);
+         xfree(csa->c_bind);
+         xfree(csa->r_bind);
+         xfree(csa->head);
       }
       return jjj;
 }
