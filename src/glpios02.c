@@ -100,16 +100,17 @@ struct f_info
       double f_min, f_max;
 };
 
-static void prepare_row_info(int n, const double a[], const double l[],
-      const double u[], struct f_info *f)
-{     int j, j_min, j_max;
+static void prepare_row_info(int n, const int ind[], const double a[],
+      const double l[], const double u[], struct f_info *f)
+{     int j, jj, j_min, j_max;
       double f_min, f_max;
       xassert(n >= 0);
       /* determine f_min and j_min */
       f_min = 0.0, j_min = 0;
       for (j = 1; j <= n; j++)
-      {  if (a[j] > 0.0)
-         {  if (l[j] == -DBL_MAX)
+      {  jj = ind[j];
+         if (a[j] > 0.0)
+         {  if (l[jj] == -DBL_MAX)
             {  if (j_min == 0)
                   j_min = j;
                else
@@ -118,10 +119,10 @@ static void prepare_row_info(int n, const double a[], const double l[],
                }
             }
             else
-               f_min += a[j] * l[j];
+               f_min += a[j] * l[jj];
          }
          else if (a[j] < 0.0)
-         {  if (u[j] == +DBL_MAX)
+         {  if (u[jj] == +DBL_MAX)
             {  if (j_min == 0)
                   j_min = j;
                else
@@ -130,7 +131,7 @@ static void prepare_row_info(int n, const double a[], const double l[],
                }
             }
             else
-               f_min += a[j] * u[j];
+               f_min += a[j] * u[jj];
          }
          else
             xassert(a != a);
@@ -139,8 +140,9 @@ static void prepare_row_info(int n, const double a[], const double l[],
       /* determine f_max and j_max */
       f_max = 0.0, j_max = 0;
       for (j = 1; j <= n; j++)
-      {  if (a[j] > 0.0)
-         {  if (u[j] == +DBL_MAX)
+      {  jj = ind[j];
+         if (a[j] > 0.0)
+         {  if (u[jj] == +DBL_MAX)
             {  if (j_max == 0)
                   j_max = j;
                else
@@ -149,10 +151,10 @@ static void prepare_row_info(int n, const double a[], const double l[],
                }
             }
             else
-               f_max += a[j] * u[j];
+               f_max += a[j] * u[jj];
          }
          else if (a[j] < 0.0)
-         {  if (l[j] == -DBL_MAX)
+         {  if (l[jj] == -DBL_MAX)
             {  if (j_max == 0)
                   j_max = j;
                else
@@ -161,7 +163,7 @@ static void prepare_row_info(int n, const double a[], const double l[],
                }
             }
             else
-               f_max += a[j] * l[j];
+               f_max += a[j] * l[jj];
          }
          else
             xassert(a != a);
@@ -295,23 +297,21 @@ static void row_implied_bounds(const struct f_info *f, double *LL,
 *
 *  The implied bounds are stored in locations ll and uu. */
 
-static void col_implied_bounds(const struct f_info *f, int n,
-      const double a[], double L, double U, const double l[],
-      const double u[], int k, double *ll, double *uu)
+static void col_implied_bounds(const struct f_info *f, double a,
+      double L, double U, double l, double u, int k, double *ll,
+      double *uu)
 {     double ilb, iub;
-      xassert(n >= 0);
-      xassert(1 <= k && k <= n);
       /* determine implied lower bound of term a[k] * x[k] (14) */
       if (L == -DBL_MAX || f->f_max == +DBL_MAX)
          ilb = -DBL_MAX;
       else if (f->j_max == 0)
-      {  if (a[k] > 0.0)
-         {  xassert(u[k] != +DBL_MAX);
-            ilb = L - (f->f_max - a[k] * u[k]);
+      {  if (a > 0.0)
+         {  xassert(u != +DBL_MAX);
+            ilb = L - (f->f_max - a * u);
          }
-         else if (a[k] < 0.0)
-         {  xassert(l[k] != -DBL_MAX);
-            ilb = L - (f->f_max - a[k] * l[k]);
+         else if (a < 0.0)
+         {  xassert(l != -DBL_MAX);
+            ilb = L - (f->f_max - a * l);
          }
          else
             xassert(a != a);
@@ -324,13 +324,13 @@ static void col_implied_bounds(const struct f_info *f, int n,
       if (U == +DBL_MAX || f->f_min == -DBL_MAX)
          iub = +DBL_MAX;
       else if (f->j_min == 0)
-      {  if (a[k] > 0.0)
-         {  xassert(l[k] != -DBL_MAX);
-            iub = U - (f->f_min - a[k] * l[k]);
+      {  if (a > 0.0)
+         {  xassert(l != -DBL_MAX);
+            iub = U - (f->f_min - a * l);
          }
-         else if (a[k] < 0.0)
-         {  xassert(u[k] != +DBL_MAX);
-            iub = U - (f->f_min - a[k] * u[k]);
+         else if (a < 0.0)
+         {  xassert(u != +DBL_MAX);
+            iub = U - (f->f_min - a * u);
          }
          else
             xassert(a != a);
@@ -345,16 +345,16 @@ static void col_implied_bounds(const struct f_info *f, int n,
          implied bounds; for example, 1e-15 * x1 >= x2 + x3, where
          x1 >= -10, x2, x3 >= 0, would lead to wrong conclusion that
          x1 >= 0 */
-      if (fabs(a[k]) < 1e-6)
+      if (fabs(a) < 1e-6)
          *ll = -DBL_MAX, *uu = +DBL_MAX; else
 #endif
-      if (a[k] > 0.0)
-      {  *ll = (ilb == -DBL_MAX ? -DBL_MAX : ilb / a[k]);
-         *uu = (iub == +DBL_MAX ? +DBL_MAX : iub / a[k]);
+      if (a > 0.0)
+      {  *ll = (ilb == -DBL_MAX ? -DBL_MAX : ilb / a);
+         *uu = (iub == +DBL_MAX ? +DBL_MAX : iub / a);
       }
-      else if (a[k] < 0.0)
-      {  *ll = (iub == +DBL_MAX ? -DBL_MAX : iub / a[k]);
-         *uu = (ilb == -DBL_MAX ? +DBL_MAX : ilb / a[k]);
+      else if (a < 0.0)
+      {  *ll = (iub == +DBL_MAX ? -DBL_MAX : iub / a);
+         *uu = (ilb == -DBL_MAX ? +DBL_MAX : ilb / a);
       }
       else
          xassert(a != a);
@@ -452,16 +452,14 @@ done: return ret;
 *  If no primal infeasibility is detected, the routine returns zero,
 *  otherwise non-zero. */
 
-static int check_col_bounds(const struct f_info *f, int n,
-      const double a[], double L, double U, const double l[],
-      const double u[], int flag, int j, double *_lj, double *_uj)
+static int check_col_bounds(const struct f_info *f, double a, double L,
+      double U, double l, double u, int flag, int j, double *_lj,
+      double *_uj)
 {     int ret = 0;
       double lj, uj, ll, uu;
-      xassert(n >= 0);
-      xassert(1 <= j && j <= n);
-      lj = l[j], uj = u[j];
+      lj = l, uj = u;
       /* determine implied bounds of the column */
-      col_implied_bounds(f, n, a, L, U, l, u, j, &ll, &uu);
+      col_implied_bounds(f, a, L, U, l, u, j, &ll, &uu);
       /* if x[j] is integral, round its implied bounds */
       if (flag)
       {  if (ll != -DBL_MAX)
@@ -508,9 +506,9 @@ static int check_col_bounds(const struct f_info *f, int n,
       {  double t1 = fabs(lj), t2 = fabs(uj);
          double eps = 1e-10 * (1.0 + (t1 <= t2 ? t1 : t2));
          if (lj > uj - eps)
-         {  if (lj == l[j])
+         {  if (lj == l)
                uj = lj;
-            else if (uj == u[j])
+            else if (uj == u)
                lj = uj;
             else if (t1 <= t2)
                uj = lj;
@@ -600,26 +598,23 @@ static int check_efficiency(int flag, double l, double u, double ll,
 *  If no primal infeasibility is detected, the routine returns zero,
 *  otherwise non-zero. */
 
-static int basic_preprocessing(glp_prob *mip, double L[], double U[],
+static int basic_preprocessing(glp_tree *tree, double L[], double U[],
       double l[], double u[], int nrs, const int num[], int max_pass)
-{     int m = mip->m;
+{     glp_prob *mip = tree->mip;
+      int m = mip->m;
       int n = mip->n;
       struct f_info f;
       int i, j, k, len, size, ret = 0;
       int *ind, *list, *mark, *pass;
-      double *val, *lb, *ub;
+      double *val;
       xassert(0 <= nrs && nrs <= m+1);
       xassert(max_pass > 0);
       /* allocate working arrays */
-      ind = xcalloc(1+n, sizeof(int));
       list = xcalloc(1+m+1, sizeof(int));
       mark = xcalloc(1+m+1, sizeof(int));
       memset(&mark[0], 0, (m+1) * sizeof(int));
       pass = xcalloc(1+m+1, sizeof(int));
       memset(&pass[0], 0, (m+1) * sizeof(int));
-      val = xcalloc(1+n, sizeof(double));
-      lb = xcalloc(1+n, sizeof(double));
-      ub = xcalloc(1+n, sizeof(double));
       /* initialize the list of rows to be processed */
       size = 0;
       for (k = 1; k <= nrs; k++)
@@ -638,6 +633,8 @@ static int basic_preprocessing(glp_prob *mip, double L[], double U[],
          pass[i]++;
          /* if the row is free, skip it */
          if (L[i] == -DBL_MAX && U[i] == +DBL_MAX) continue;
+         val = tree->dwrk;
+         ind = tree->iwrk;
          /* obtain coefficients of the row */
          len = 0;
          if (i == 0)
@@ -653,12 +650,8 @@ static int basic_preprocessing(glp_prob *mip, double L[], double U[],
             for (aij = row->ptr; aij != NULL; aij = aij->r_next)
                len++, ind[len] = aij->col->j, val[len] = aij->val;
          }
-         /* determine lower and upper bounds of columns corresponding
-            to non-zero row coefficients */
-         for (k = 1; k <= len; k++)
-            j = ind[k], lb[k] = l[j], ub[k] = u[j];
          /* prepare the row info to determine implied bounds */
-         prepare_row_info(len, val, lb, ub, &f);
+         prepare_row_info(len, ind, val, l, u, &f);
          /* check and relax bounds of the row */
          if (check_row_bounds(&f, &L[i], &U[i]))
          {  /* the feasible region is empty */
@@ -676,7 +669,7 @@ static int basic_preprocessing(glp_prob *mip, double L[], double U[],
             j = ind[k], col = mip->col[j];
             flag = col->kind != GLP_CV;
             /* check and tighten bounds of the column */
-            if (check_col_bounds(&f, len, val, L[i], U[i], lb, ub,
+            if (check_col_bounds(&f, val[k], L[i], U[i], l[j], u[j],
                 flag, k, &ll, &uu))
             {  /* the feasible region is empty */
                ret = 1;
@@ -707,13 +700,9 @@ static int basic_preprocessing(glp_prob *mip, double L[], double U[],
          }
       }
 done: /* free working arrays */
-      xfree(ind);
       xfree(list);
       xfree(mark);
       xfree(pass);
-      xfree(val);
-      xfree(lb);
-      xfree(ub);
       return ret;
 }
 
@@ -783,7 +772,7 @@ int ios_preprocess_node(glp_tree *tree, int max_pass)
       num = xcalloc(1+nrs, sizeof(int));
       for (i = 1; i <= nrs; i++) num[i] = i - 1;
       /* perform basic preprocessing */
-      if (basic_preprocessing(mip , L, U, l, u, nrs, num, max_pass))
+      if (basic_preprocessing(tree, L, U, l, u, nrs, num, max_pass))
       {  ret = 1;
          goto done;
       }
