@@ -173,6 +173,7 @@ glp_tree *ios_create_tree(glp_prob *mip, const glp_iocp *parm)
       tree->next_p = 0;
       /*tree->btrack = NULL;*/
       tree->stop = 0;
+      tree->obj_step = 0.0;
       /* create the root subproblem, which initially is identical to
          the original MIP */
       new_node(tree, NULL);
@@ -1355,9 +1356,13 @@ int ios_solve_node(glp_tree *tree)
       {  switch (tree->mip->dir)
          {  case GLP_MIN:
                parm.obj_ul = mip->mip_obj;
+               if (tree->obj_step > 0) parm.obj_ul -= tree->obj_step -
+                  tree->parm->tol_obj * (1.0 + fabs(mip->mip_obj));
                break;
             case GLP_MAX:
                parm.obj_ll = mip->mip_obj;
+               if (tree->obj_step > 0) parm.obj_ll += tree->obj_step -
+                  tree->parm->tol_obj * (1.0 + fabs(mip->mip_obj));
                break;
             default:
                xassert(mip != mip);

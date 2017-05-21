@@ -24,6 +24,7 @@
 
 #include "env.h"
 #include "glpios.h"
+#include "misc.h"
 
 /***********************************************************************
 *  show_progress - display current progress of the search
@@ -260,19 +261,25 @@ static void record_solution(glp_tree *T)
 *
 *  This routine fixes some non-basic integer columns if their reduced
 *  costs indicate that increasing (decreasing) the column at least by
-*  one involves the objective value becoming worse than the incumbent
-*  objective value. */
+*  one guarantees the objective value will not be better than the
+*  incumbent objective value. */
 
 static void fix_by_red_cost(glp_tree *T)
 {     glp_prob *mip = T->mip;
       int j, stat, fixed = 0;
       double obj, lb, ub, dj;
+      double step;
       /* the global bound must exist */
       xassert(T->mip->mip_stat == GLP_FEAS);
       /* basic solution of LP relaxation must be optimal */
       xassert(mip->pbs_stat == GLP_FEAS && mip->dbs_stat == GLP_FEAS);
       /* determine the objective function value */
       obj = mip->obj_val;
+      /* check if we know the minimum step to the next solution and
+         reduce it by the current objective tolerance */
+      step = T->obj_step -
+         T->parm->tol_obj * (1.0 + fabs(mip->mip_obj));
+      if (step < 0) step = 0;
       /* walk through the column list */
       for (j = 1; j <= mip->n; j++)
       {  GLPCOL *col = mip->col[j];
@@ -289,13 +296,13 @@ static void fix_by_red_cost(glp_tree *T)
                if (stat == GLP_NL)
                {  /* j-th column is non-basic on its lower bound */
                   if (dj < 0.0) dj = 0.0;
-                  if (obj + dj >= mip->mip_obj)
+                  if (obj + dj >= mip->mip_obj - step)
                      glp_set_col_bnds(mip, j, GLP_FX, lb, lb), fixed++;
                }
                else if (stat == GLP_NU)
                {  /* j-th column is non-basic on its upper bound */
                   if (dj > 0.0) dj = 0.0;
-                  if (obj - dj >= mip->mip_obj)
+                  if (obj - dj >= mip->mip_obj - step)
                      glp_set_col_bnds(mip, j, GLP_FX, ub, ub), fixed++;
                }
                break;
@@ -304,13 +311,13 @@ static void fix_by_red_cost(glp_tree *T)
                if (stat == GLP_NL)
                {  /* j-th column is non-basic on its lower bound */
                   if (dj > 0.0) dj = 0.0;
-                  if (obj + dj <= mip->mip_obj)
+                  if (obj + dj <= mip->mip_obj + step)
                      glp_set_col_bnds(mip, j, GLP_FX, lb, lb), fixed++;
                }
                else if (stat == GLP_NU)
                {  /* j-th column is non-basic on its upper bound */
                   if (dj < 0.0) dj = 0.0;
-                  if (obj - dj <= mip->mip_obj)
+                  if (obj - dj <= mip->mip_obj + step)
                      glp_set_col_bnds(mip, j, GLP_FX, ub, ub), fixed++;
                }
                break;
@@ -883,6 +890,37 @@ static void display_cut_info(glp_tree *T)
 }
 
 /***********************************************************************
+*  calc_obj_step - find minimum difference between integer solutions
+*
+*  This routine calculates the minimum change of the objective function
+*  between integer solutions, similar to what is done in ios_round_bound
+*  but the value here can be precalculated. */
+
+double calc_obj_step(glp_tree *T)
+{     double step=0;
+      glp_prob *mip = T->mip;
+      int n = mip->n;
+      int j, nn;
+      int *val;
+      val = xcalloc(1+n, sizeof(int));
+      nn = 0;
+      for (j = 1; j <= n; j++)
+      {  GLPCOL *col = mip->col[j];
+         if (col->coef == 0.0 || col->type == GLP_FX) continue;
+         else
+         {  if (col->kind != GLP_IV) goto skip;
+            if (col->coef != floor(col->coef)) goto skip;
+            if (fabs(col->coef) > (double)INT_MAX) goto skip;
+            val[++nn] = fabs(col->coef);
+         }
+      }
+      if (nn >= 1)
+         step = gcdn(nn, val);
+skip: xfree(val);
+      return step;
+}
+
+/***********************************************************************
 *  NAME
 *
 *  ios_driver - branch-and-cut driver
@@ -947,6 +985,10 @@ int ios_driver(glp_tree *T)
       /* on entry to the B&B driver it is assumed that the active list
          contains the only active (i.e. root) subproblem, which is the
          original MIP problem to be solved */
+      /* store the minimum difference between integer solutions */
+      T->obj_step = calc_obj_step(T);
+      if (T->obj_step > 0)
+         xprintf("Objective step = %g\n", T->obj_step);
 loop: /* main loop starts here */
       /* at this point the current subproblem does not exist */
       xassert(T->curr == NULL);

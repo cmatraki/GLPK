@@ -226,6 +226,8 @@ struct glp_tree
          GLP_NO_BRNCH - use general selection technique */
       int child;
       /* subproblem reference number corresponding to br_sel */
+      double obj_step;
+      /* minimum possible difference between integer solutions */
 };
 
 struct IOSLOT
