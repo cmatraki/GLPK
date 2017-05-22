@@ -478,6 +478,7 @@ static int branch_on(glp_tree *T, int j, int next)
             "\n", clone[1], clone[2]);
       /* set new upper bound of j-th column in the down-branch */
       node = T->slot[clone[1]].node;
+      node->sibling = T->slot[clone[2]].node;
       xassert(node != NULL);
       xassert(node->up != NULL);
       xassert(node->b_ptr == NULL);
@@ -500,6 +501,7 @@ static int branch_on(glp_tree *T, int j, int next)
          xassert(mip != mip);
       /* set new lower bound of j-th column in the up-branch */
       node = T->slot[clone[2]].node;
+      node->sibling = T->slot[clone[1]].node;
       xassert(node != NULL);
       xassert(node->up != NULL);
       xassert(node->b_ptr == NULL);
@@ -1522,6 +1524,12 @@ more: /* minor loop starts here */
 fath: /* the current subproblem has been fathomed */
       if (T->parm->msg_lev >= GLP_MSG_DBG)
          xprintf("Node %d fathomed\n", p);
+      /* check for active sibling to use as next subproblem */
+      if (T->curr->sibling != NULL)
+      {  IOSNPD *node = T->curr->sibling;
+         if (is_branch_hopeful(T, node->p))
+            ios_revive_node(T, node->p);
+      }
       /* prune current subproblem and the corresponding branch of the
          tree; no need for freezing, ios_delete_node() will restore
          the root subproblem */
@@ -1529,6 +1537,13 @@ fath: /* the current subproblem has been fathomed */
       /* if a new integer feasible solution has just been found, other
          branches may become hopeless and therefore must be pruned */
       if (T->mip->mip_stat == GLP_FEAS) cleanup_the_tree(T);
+      /* if a sibling node was revived, continue with the minor loop */
+      if (T->curr)
+      {  p = T->curr->p;
+         curr_p = p;
+         T->curr->solved = T->curr->changed = 0;
+         goto more;
+      }
       /* new subproblem selection is needed due to backtracking */
       pred_p = 0;
       goto loop;

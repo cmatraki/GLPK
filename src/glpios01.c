@@ -196,10 +196,11 @@ glp_tree *ios_create_tree(glp_prob *mip, const glp_iocp *parm)
 *  The routine ios_revive_node revives the specified subproblem, whose
 *  reference number is p, and thereby makes it the current subproblem.
 *  Note that the specified subproblem must be active. Besides, if the
-*  current subproblem already exists, it must be frozen before reviving
-*  another subproblem. */
+*  current subproblem already exists, assume it will be deleted just
+*  after this call so no need to correctly freeze it. */
 
 static void restore_root(glp_tree *tree);
+static void restore_parent(glp_tree *tree);
 
 void ios_revive_node(glp_tree *tree, int p)
 {     glp_prob *mip = tree->mip;
@@ -210,8 +211,13 @@ void ios_revive_node(glp_tree *tree, int p)
       xassert(node != NULL);
       /* the specified subproblem must be active */
       xassert(node->count == 0);
-      /* the current subproblem must not exist */
-      xassert(tree->curr == NULL);
+      /* if the current subproblem exists, semi-freeze it; it will be
+         deleted afterwards */
+      if (tree->curr != NULL)
+      {  xassert(tree->frozen == NULL);
+         tree->frozen = tree->curr;
+         tree->curr = NULL;
+      }
       /*tree->solved = 0;*/
       /* obtain pointer to the root subproblem */
       root = tree->slot[1].node;
@@ -220,9 +226,17 @@ void ios_revive_node(glp_tree *tree, int p)
          the search, at which point the problem object components are
          correct, so there is nothing more to do */
       if (node == root) goto done;
-      /* may need to restore root subproblem */
-      if (tree->frozen != NULL && tree->frozen != node->up)
-         restore_root(tree);
+      /* if the node to be revived is a sibling of the frozen one, the
+         parent subproblem needs to be revived, and if the node to be
+         revived is not a child of the frozen one, the root subproblem
+         has to be revived */
+      if (tree->frozen != NULL)
+      {  xassert(tree->frozen != node);
+         if (tree->frozen->up != NULL && tree->frozen->up == node->up)
+            restore_parent(tree);
+         else if (tree->frozen != node->up)
+            restore_root(tree);
+      }
       /* build path to the current node */
       node->temp = NULL;
       if (tree->frozen == NULL)
@@ -577,6 +591,61 @@ static void restore_root(glp_tree *tree)
       return;
 }
 
+/***********************************************************************
+*  restore_parent - make state consistent with that of the parent node
+*
+*  This is only valid if a child is going to be revived immediately
+*  after; The problem components corresponding to the parent will not be
+*  valid afterwards, but ios_revive_node() overwrites them. */
+
+static void restore_parent(glp_tree *tree)
+{     glp_prob *mip = tree->mip;
+      int m = mip->m;
+      int n = mip->n;
+      IOSNPD *node;
+      /* the current subproblem must not exist */
+      xassert(tree->curr == NULL);
+      /* obtain pointer to the frozen subproblem */
+      node = tree->frozen;
+      xassert(node != NULL);
+      if (node->up != NULL)
+      {  /* freeze non-root subproblem */
+         int pred_m = tree->pred_m;
+         int i, j;
+         /* remove all rows missing in the parent subproblem */
+         if (m != pred_m)
+         {  int nrs, *num;
+            nrs = m - pred_m;
+            xassert(nrs > 0);
+            num = xcalloc(1+nrs, sizeof(int));
+            for (i = 1; i <= nrs; i++) num[i] = pred_m + i;
+            glp_del_rows(mip, nrs, num);
+            xfree(num);
+         }
+         m = mip->m;
+         /* and restore attributes of all rows and columns for the
+            parent subproblem */
+         xassert(m == pred_m);
+         for (i = 1; i <= m; i++)
+         {  glp_set_row_bnds(mip, i, tree->pred_type[i],
+               tree->pred_lb[i], tree->pred_ub[i]);
+            glp_set_row_stat(mip, i, tree->pred_stat[i]);
+         }
+         for (j = 1; j <= n; j++)
+         {  glp_set_col_bnds(mip, j, tree->pred_type[m+j],
+               tree->pred_lb[m+j], tree->pred_ub[m+j]);
+            glp_set_col_stat(mip, j, tree->pred_stat[m+j]);
+         }
+#if 1
+         /* remove all edges and cliques missing in the conflict graph
+            for the parent subproblem */
+         /* (not implemented yet) */
+#endif
+      }
+      /* now the parent problem becomes the frozen one */
+      tree->frozen = node->up;
+      return;
+}
 
 /***********************************************************************
 *  NAME
@@ -650,6 +719,7 @@ static IOSNPD *new_node(glp_tree *tree, IOSNPD *parent)
       node->s_ptr = NULL;
       node->r_ptr = NULL;
       node->solved = 0;
+      node->sibling = 0;
 #if 0
       node->own_nn = node->own_nc = 0;
       node->e_ptr = NULL;
@@ -720,6 +790,11 @@ void ios_clone_node(glp_tree *tree, int p, int nnn, int ref[])
       xassert(nnn > 0);
       for (k = 1; k <= nnn; k++)
          ref[k] = new_node(tree, node)->p;
+      /* clear the sibling pointer pair */
+      if (node->sibling != NULL)
+      {  node->sibling->sibling = NULL;
+         node->sibling = NULL;
+      }
       return;
 }
 
@@ -760,6 +835,11 @@ void ios_delete_node(glp_tree *tree, int p)
       /* restore root subproblem if necessary */
       if (node == tree->frozen)
          restore_root(tree);
+      /* clear the sibling pointer pair */
+      if (node->sibling != NULL)
+      {  node->sibling->sibling = NULL;
+         node->sibling = NULL;
+      }
       /* remove the specified subproblem from the active list, because
          it is gone from the tree */
       if (node->prev == NULL)

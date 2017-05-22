@@ -253,6 +253,9 @@ struct IOSNPD
       IOSNPD *up;
       /* pointer to the parent subproblem; NULL means this node is the
          root of the tree, in which case p = 1 */
+      IOSNPD *sibling;
+      /* pointer to the sibling subproblem; NULL means this node is the
+         only remainig child of its parent */
       int level;
       /* node level (the root node has level 0) */
       int count;
