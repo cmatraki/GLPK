@@ -540,16 +540,37 @@ void ios_pcost_update(glp_tree *tree)
       /* this routine is called every time when LP relaxation of the
          current subproblem has been solved to optimality with all lazy
          and cutting plane constraints included */
-      int j;
+      int j, jj;
       double dx, dz, psi;
       struct csa *csa = tree->pcost;
       xassert(csa != NULL);
       xassert(tree->curr != NULL);
-      /* if the current subproblem is the root, skip updating */
-      if (tree->curr->up == NULL) goto skip;
       /* determine branching variable x[j], which was used in the
          parent subproblem to create the current subproblem */
-      j = tree->curr->up->br_var;
+      if (tree->curr->up != NULL)
+         j = tree->curr->up->br_var;
+      else
+         j = -1;
+      /* update pseudocosts using the reduced costs of nonbasic
+         variables, as described in "More Ways to Use Dual Information
+         in MILP" by P. Christophel, M. Guzelsoy and I. Polik, presented
+         in ISMP2015 */
+      for (jj = 1; jj <= tree->n; jj++)
+      {  if (j == jj) continue;
+         if (tree->mip->col[jj]->stat == GLP_BS) continue;
+         if (tree->mip->col[jj]->kind == GLP_CV) continue;
+         psi = tree->mip->col[jj]->dual;
+         if (psi <= 0)
+         {  csa->dn_cnt[jj]++;
+            csa->dn_sum[jj] -= psi;
+         }
+         if (psi >= 0)
+         {  csa->up_cnt[jj]++;
+            csa->up_sum[jj] += psi;
+         }
+      }
+      /* if the current subproblem is the root, skip updating */
+      if (tree->curr->up == NULL) goto skip;
       xassert(1 <= j && j <= tree->n);
       /* determine the change dx[j] = new x[j] - old x[j],
          where new x[j] is a value of x[j] in optimal solution to LP
