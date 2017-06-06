@@ -49,18 +49,20 @@
 static int most_feas(glp_tree *T);
 static int best_proj(glp_tree *T);
 static int best_node(glp_tree *T);
+static int bfs(glp_tree *T);
+static int dfs(glp_tree *T);
 
 int ios_choose_node(glp_tree *T)
 {     int p;
       if (T->parm->bt_tech == GLP_BT_DFS)
       {  /* depth first search */
          xassert(T->tail != NULL);
-         p = T->tail->p;
+         p = dfs(T);
       }
       else if (T->parm->bt_tech == GLP_BT_BFS)
       {  /* breadth first search */
          xassert(T->head != NULL);
-         p = T->head->p;
+         p = bfs(T);
       }
       else if (T->parm->bt_tech == GLP_BT_BLB)
       {  /* select node with best local bound */
@@ -130,41 +132,26 @@ static int best_node(glp_tree *T)
 {     /* select subproblem with best local bound */
       IOSNPD *node, *best = NULL;
       double bound, eps;
+      best = T->head;
+      bound = best->bound;
+      eps = 1e-10 * (1.0 + fabs(bound));
       switch (T->mip->dir)
       {  case GLP_MIN:
-            bound = +DBL_MAX;
-            for (node = T->head; node != NULL; node = node->next)
-               if (bound > node->bound) bound = node->bound;
-            xassert(bound != +DBL_MAX);
-            eps = 1e-10 * (1.0 + fabs(bound));
-            for (node = T->head; node != NULL; node = node->next)
-            {  if (node->bound <= bound + eps)
-               {  xassert(node->up != NULL);
-                  if (best == NULL ||
-#if 1
-                  best->up->ii_sum > node->up->ii_sum) best = node;
-#else
-                  best->lp_obj > node->lp_obj) best = node;
-#endif
-               }
+            for (node = best->next; node != NULL; node = node->next)
+            {  if (node->bound > bound + eps) break;
+               xassert(node->up != NULL);
+               if (best->up->ii_sum > node->up->ii_sum) best = node;
+               else if (best->up->ii_sum == node->up->ii_sum &&
+               best->lp_obj > node->lp_obj) best = node;
             }
             break;
          case GLP_MAX:
-            bound = -DBL_MAX;
-            for (node = T->head; node != NULL; node = node->next)
-               if (bound < node->bound) bound = node->bound;
-            xassert(bound != -DBL_MAX);
-            eps = 1e-10 * (1.0 + fabs(bound));
-            for (node = T->head; node != NULL; node = node->next)
-            {  if (node->bound >= bound - eps)
-               {  xassert(node->up != NULL);
-                  if (best == NULL ||
-#if 1
-                  best->up->ii_sum > node->up->ii_sum) best = node;
-#else
-                  best->lp_obj < node->lp_obj) best = node;
-#endif
-               }
+            for (node = best->next; node != NULL; node = node->next)
+            {  if (node->bound < bound + eps) break;
+               xassert(node->up != NULL);
+               if (best->up->ii_sum > node->up->ii_sum) best = node;
+               else if (best->up->ii_sum == node->up->ii_sum &&
+               best->lp_obj < node->lp_obj) best = node;
             }
             break;
          default:
@@ -172,6 +159,34 @@ static int best_node(glp_tree *T)
       }
       xassert(best != NULL);
       return best->p;
+}
+
+static int dfs(glp_tree *T)
+{     /* depth first search */
+      IOSNPD *node;
+      int p;
+      int level;
+      p = 0, level = -1;
+      for (node = T->head; node != NULL; node = node->next)
+      {  xassert(node->up != NULL);
+         if (level < node->level)
+            p = node->p, level = node->level;
+      }
+      return p;
+}
+
+static int bfs(glp_tree *T)
+{     /* breadth first search */
+      IOSNPD *node;
+      int p;
+      int level;
+      p = 0, level = INT_MAX;
+      for (node = T->head; node != NULL; node = node->next)
+      {  xassert(node->up != NULL);
+         if (level > node->level)
+            p = node->p, level = node->level;
+      }
+      return p;
 }
 
 /* eof */

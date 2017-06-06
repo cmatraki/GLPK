@@ -341,6 +341,47 @@ static void fix_by_red_cost(glp_tree *T)
 }
 
 /***********************************************************************
+*  sort_node - move node in correct position in active list
+*
+*  This routine maintains the active list in local bound order. The list
+*  head is always the best node and can be quickly retrieved. Should be
+*  called every time the node bound changes */
+
+static void sort_node(glp_tree *T, IOSNPD *node)
+{     glp_prob *mip = T->mip;
+      IOSNPD *ptr;
+      if (mip->dir == GLP_MIN)
+      {  for (ptr = node->next; ptr != NULL; ptr = ptr->next)
+            if (ptr->bound > node->bound) break;
+      }
+      else if (mip->dir == GLP_MAX)
+      {  for (ptr = node->next; ptr != NULL; ptr = ptr->next)
+            if (ptr->bound < node->bound) break;
+      }
+      else
+         xassert(mip != mip);
+      if (ptr != node->next)
+      {  if (node->prev == NULL)
+            T->head = node->next;
+         else
+            node->prev->next = node->next;
+         /* this cannot be the tail node */
+         node->next->prev = node->prev;
+         if (ptr == NULL)
+         {  node->prev = T->tail;
+            T->tail = node;
+         }
+         else
+         {  node->prev = ptr->prev;
+            ptr->prev = node;
+         }
+         /* after moving there is always a previous node */
+         node->prev->next = node;
+         node->next = ptr;
+      }
+}
+
+/***********************************************************************
 *  branch_on - perform branching on specified variable
 *
 *  This routine performs branching on j-th column (structural variable)
@@ -368,7 +409,7 @@ static void fix_by_red_cost(glp_tree *T)
 
 static int branch_on(glp_tree *T, int j, int next)
 {     glp_prob *mip = T->mip;
-      IOSNPD *node;
+      IOSNPD *node, *node1, *node2;
       int m = mip->m;
       int n = mip->n;
       int type, dn_type, up_type, dn_bad, up_bad, p, ret, clone[1+2];
@@ -430,11 +471,15 @@ static int branch_on(glp_tree *T, int j, int next)
          T->curr->lp_obj = dn_lp;
          if (mip->dir == GLP_MIN)
          {  if (T->curr->bound < dn_bnd)
-                T->curr->bound = dn_bnd;
+            {  T->curr->bound = dn_bnd;
+               sort_node(T,T->curr);
+            }
          }
          else if (mip->dir == GLP_MAX)
          {  if (T->curr->bound > dn_bnd)
-                T->curr->bound = dn_bnd;
+            {  T->curr->bound = dn_bnd;
+               sort_node(T,T->curr);
+            }
          }
          else
             xassert(mip != mip);
@@ -448,11 +493,15 @@ static int branch_on(glp_tree *T, int j, int next)
          T->curr->lp_obj = up_lp;
          if (mip->dir == GLP_MIN)
          {  if (T->curr->bound < up_bnd)
-                T->curr->bound = up_bnd;
+            {  T->curr->bound = up_bnd;
+               sort_node(T,T->curr);
+            }
          }
          else if (mip->dir == GLP_MAX)
          {  if (T->curr->bound > up_bnd)
-                T->curr->bound = up_bnd;
+            {  T->curr->bound = up_bnd;
+               sort_node(T,T->curr);
+            }
          }
          else
             xassert(mip != mip);
@@ -522,6 +571,45 @@ static int branch_on(glp_tree *T, int j, int next)
       }
       else
          xassert(mip != mip);
+      /* move both nodes to correct position */
+      node1 = T->slot[clone[1]].node;
+      node2 = T->slot[clone[2]].node;
+      if (mip->dir == GLP_MIN)
+      {  if (node1->bound > node2->bound)
+         {  node = node1;
+            node1 = node2;
+            node2 = node;
+         }
+      }
+      else if (mip->dir == GLP_MAX)
+      {  if (node1->bound < node2->bound)
+         {  node = node1;
+            node1 = node2;
+            node2 = node;
+         }
+      }
+      else
+         xassert(mip != mip);
+      /* temporarily remove node2 from the list ... */
+      if (node2->prev == NULL)
+         T->head = node2->next;
+      else
+         node2->prev->next = node2->next;
+      if (node2->next == NULL)
+         T->tail = node2->prev;
+      else
+         node2->next->prev = node2->prev;
+      /* ... sort node1 ... */
+      sort_node(T, node1);
+      /* ... and put node2 after node1 before sorting */
+      node2->next = node1->next;
+      node2->prev = node1;
+      if (node1->next == NULL)
+         T->tail = node2;
+      else
+         node1->next->prev = node2;
+      node1->next = node2;
+      sort_node(T, node2);
       /* suggest the subproblem to be solved next */
       xassert(T->child == 0);
       if (next == GLP_NO_BRNCH)
@@ -550,17 +638,10 @@ static void cleanup_the_tree(glp_tree *T)
       int count = 0;
       /* the global bound must exist */
       xassert(T->mip->mip_stat == GLP_FEAS);
-      /* walk through the list of active subproblems */
-      for (node = T->head; node != NULL; node = next_node)
-      {  /* deleting some active problem node may involve deleting its
-            parents recursively; however, all its parents being created
-            *before* it are always *precede* it in the node list, so
-            the next problem node is never affected by such deletion */
-         next_node = node->next;
-         /* if the branch is hopeless, prune it */
-         if (!is_branch_hopeful(T, node->p))
-            ios_delete_node(T, node->p), count++;
-      }
+      /* the list of active subproblems is in bound order so prune
+         the end until it is not hopeless */
+      while (T->tail && !is_branch_hopeful(T, T->tail->p))
+         ios_delete_node(T, T->tail->p), count++;
       if (T->parm->msg_lev >= GLP_MSG_DBG)
       {  if (count == 1)
             xprintf("One hopeless branch has been pruned\n");
@@ -1245,11 +1326,15 @@ more: /* minor loop starts here */
          bound = ios_round_bound(T, bound);
          if (T->mip->dir == GLP_MIN)
          {  if (T->curr->bound < bound)
-               T->curr->bound = bound;
+            {  T->curr->bound = bound;
+               sort_node(T,T->curr);
+            }
          }
          else if (T->mip->dir == GLP_MAX)
          {  if (T->curr->bound > bound)
-               T->curr->bound = bound;
+            {  T->curr->bound = bound;
+               sort_node(T,T->curr);
+            }
          }
          else
             xassert(T->mip != T->mip);

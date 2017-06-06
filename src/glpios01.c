@@ -744,14 +744,23 @@ static IOSNPD *new_node(glp_tree *tree, IOSNPD *parent)
          memset(node->data, 0, tree->parm->cb_size);
       }
       node->temp = NULL;
-      node->prev = tree->tail;
-      node->next = NULL;
-      /* add the new subproblem to the end of the active list */
-      if (tree->head == NULL)
+      if (parent == NULL)
+      {  /* creating the root subproblem */
+         node->prev = NULL;
+         node->next = NULL;
          tree->head = node;
+         tree->tail = node;
+      }
       else
-         tree->tail->next = node;
-      tree->tail = node;
+      {  /* add the new subproblem after the parent */
+         if (parent->next == NULL)
+            tree->tail = node;
+         else
+            parent->next->prev = node;
+         node->next = parent->next;
+         parent->next = node;
+         node->prev = parent;
+      }
       tree->a_cnt++;
       tree->n_cnt++;
       tree->t_cnt++;
@@ -774,6 +783,10 @@ void ios_clone_node(glp_tree *tree, int p, int nnn, int ref[])
       xassert(node->count == 0);
       /* and must be in the frozen state */
       xassert(tree->curr != node);
+      /* create clone subproblems */
+      xassert(nnn > 0);
+      for (k = 1; k <= nnn; k++)
+         ref[k] = new_node(tree, node)->p;
       /* remove the specified subproblem from the active list, because
          it becomes inactive */
       if (node->prev == NULL)
@@ -786,10 +799,6 @@ void ios_clone_node(glp_tree *tree, int p, int nnn, int ref[])
          node->next->prev = node->prev;
       node->prev = node->next = NULL;
       tree->a_cnt--;
-      /* create clone subproblems */
-      xassert(nnn > 0);
-      for (k = 1; k <= nnn; k++)
-         ref[k] = new_node(tree, node)->p;
       /* clear the sibling pointer pair */
       if (node->sibling != NULL)
       {  node->sibling->sibling = NULL;
@@ -1346,23 +1355,8 @@ int ios_is_hopeful(glp_tree *tree, double bound)
 *  for the best node. However, if the tree is empty, it returns zero. */
 
 int ios_best_node(glp_tree *tree)
-{     IOSNPD *node, *best = NULL;
-      switch (tree->mip->dir)
-      {  case GLP_MIN:
-            /* minimization */
-            for (node = tree->head; node != NULL; node = node->next)
-               if (best == NULL || best->bound > node->bound)
-                  best = node;
-            break;
-         case GLP_MAX:
-            /* maximization */
-            for (node = tree->head; node != NULL; node = node->next)
-               if (best == NULL || best->bound < node->bound)
-                  best = node;
-            break;
-         default:
-            xassert(tree != tree);
-      }
+{     /* the active list is sorted so the best node is first */
+      IOSNPD *best = tree->head;
       return best == NULL ? 0 : best->p;
 }
 

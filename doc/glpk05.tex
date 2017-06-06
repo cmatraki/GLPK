@@ -721,9 +721,10 @@ The parameter \verb|sel| is a flag that indicates which branch
 
 On branching the solver removes the current active subproblem from the
 active list and creates two new subproblems ({\it down-} and {\it
-up-branches}), which are added to the end of the active list. Note that
-the down-branch is created before the up-branch, so the last active
-subproblem will be the up-branch.
+up-branches}), which are added to the appropriate positions to maintain
+the active list in local bound order. The first subproblem in the active
+list is always the one with the best local bound and the last subproblem
+is the one with the worse local bound.
 
 The down- and up-branches are identical to the current subproblem with
 exception that in the down-branch the upper bound of $x_j$, the variable
@@ -817,8 +818,9 @@ of some active subproblem, in which case the routine returns the
 reference number of the next active subproblem. However, if there is
 no next active subproblem in the list, zero is returned.
 
-All subproblems in the active list are ordered chronologically, i.e.
-subproblem $A$ precedes subproblem $B$ if $A$ was created before $B$.
+All subproblems in the active list are in local bound order, i.e.
+subproblem $A$ precedes subproblem $B$ if $A$ has better local bound
+value than $B$.
 
 \newpage
 
@@ -842,8 +844,9 @@ of some active subproblem, in which case the routine returns the
 reference number of the previous active subproblem. However, if there
 is no previous active subproblem in the list, zero is returned.
 
-All subproblems in the active list are ordered chronologically, i.e.
-subproblem $A$ precedes subproblem $B$ if $A$ was created before $B$.
+All subproblems in the active list are in local bound order, i.e.
+subproblem $A$ precedes subproblem $B$ if $A$ has better local bound
+value than $B$.
 
 \subsection{glp\_ios\_up\_node --- determine parent subproblem}
 

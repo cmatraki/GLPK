@@ -151,8 +151,9 @@ int glp_ios_curr_node(glp_tree *tree)
 *  reference number of the next active subproblem. However, if there is
 *  no next active subproblem in the list, zero is returned.
 *
-*  All subproblems in the active list are ordered chronologically, i.e.
-*  subproblem A precedes subproblem B if A was created before B. */
+*  All subproblems in the active list are in local bound order, i.e.
+*  subproblem A precedes subproblem B if A has better local bound
+*  value than B. */
 
 int glp_ios_next_node(glp_tree *tree, int p)
 {     IOSNPD *node;
@@ -198,8 +199,9 @@ err:        xerror("glp_ios_next_node: p = %d; invalid subproblem refer"
 *  reference number of the previous active subproblem. However, if there
 *  is no previous active subproblem in the list, zero is returned.
 *
-*  All subproblems in the active list are ordered chronologically, i.e.
-*  subproblem A precedes subproblem B if A was created before B. */
+*  All subproblems in the active list are in local bound order, i.e.
+*  subproblem A precedes subproblem B if A has better local bound
+*  value than B. */
 
 int glp_ios_prev_node(glp_tree *tree, int p)
 {     IOSNPD *node;
