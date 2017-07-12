@@ -85,8 +85,7 @@ struct glp_tree
       /* pointer to the tail of the active list */
       /* the active list is a doubly linked list of active subproblems
          which correspond to leaves of the tree; all subproblems in the
-         active list are ordered chronologically (each a new subproblem
-         is always added to the tail of the list) */
+         active list are ordered in local bound order */
       int a_cnt;
       /* current number of active nodes (including the current one) */
       int n_cnt;
