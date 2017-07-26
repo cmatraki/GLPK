@@ -101,7 +101,9 @@ value for $P^0$.
 
 If $L=\varnothing$ then GO TO 9.
 
-Select $P\in L$, i.e. make active subproblem $P$ current.
+Select $P\in L$, i.e. make active subproblem $P$ current and set
+$L:=L\backslash\{P\}$, i.e. remove the current subproblem $P$ from the
+active list $L$.
 
 %\newpage
 
@@ -158,15 +160,14 @@ bound of $x_j$ is replaced by $\lceil x^{\it LP}_j\rceil$. (For example,
 if $x^{\it LP}_j=3.14$, the new lower bound of $x_j$ in the up branch
 will be $\lceil 3.14\rceil=4$.)
 
-Set $L:=(L\backslash\{P\})\cup\{P^D,P^U\}$, i.e. remove the current
-subproblem $P$ from the active list $L$ and add two new subproblems
-$P^D$ and $P^U$ to it. Then GO TO 2.
+Set $L:=L\cup\{P^D,P^U\}$, i.e. add two new subproblems $P^D$ and $P^U$
+to the active list. Then GO TO 2.
 
 {\it 8. Pruning}
 
-Remove from the active list $L$ all subproblems (including the current
-one), whose local bound $\widetilde{z}$ is not better than the global
-bound $z^{\it best}$, i.e. set $L:=L\backslash\{P\}$ for all $P$, where
+Remove from the active list $L$ all subproblems whose local bound
+$\widetilde{z}$ is not better than the global bound $z^{\it best}$,
+i.e. set $L:=L\backslash\{P\}$ for all $P$, where
 $\widetilde{z}\geq z^{\it best}$ (in case of minimization) or
 $\widetilde{z}\leq z^{\it best}$ (in case of maximization), and then
 GO TO 2.
@@ -634,7 +635,8 @@ The routine \verb|glp_ios_select_node| can be called from the
 user-defined callback routine in response to the reason
 \verb|GLP_ISELECT| to select an active subproblem, whose reference
 number\linebreak is $p$. The search will be continued from the
-subproblem selected.
+subproblem selected and the subproblem will be removed from the active
+list.
 
 \newpage
 
@@ -719,12 +721,11 @@ The parameter \verb|sel| is a flag that indicates which branch
 
 \para{Comments}
 
-On branching the solver removes the current active subproblem from the
-active list and creates two new subproblems ({\it down-} and {\it
-up-branches}), which are added to the appropriate positions to maintain
-the active list in local bound order. The first subproblem in the active
-list is always the one with the best local bound and the last subproblem
-is the one with the worse local bound.
+On branching the solver creates two new subproblems ({\it down-} and
+{\it up-branches}), which are added to the appropriate positions to
+maintain the active list in local bound order. The first subproblem in
+the active list is always the one with the best local bound and the last
+subproblem is the one with the worse local bound.
 
 The down- and up-branches are identical to the current subproblem with
 exception that in the down-branch the upper bound of $x_j$, the variable
@@ -797,7 +798,8 @@ subproblem}
 
 The routine \verb|glp_ios_curr_node| returns the reference number of
 the current active subproblem. However, if the current subproblem does
-not exist, the routine returns zero.
+not exist, the routine returns zero. Note that the current node is not
+a member of the active list.
 
 \subsection{glp\_ios\_next\_node --- determine next active subproblem}
 
@@ -809,14 +811,14 @@ not exist, the routine returns zero.
 
 \returns
 
-If the parameter $p$ is zero, the routine \verb|glp_ios_next_node|
-returns the reference number of the first active subproblem. However,
-if the tree is empty, zero is returned.
+If the parameter $p$ is zero or the subproblem with reference number $p$
+is not a member of the active list, the routine \verb|glp_ios_next_node|
+returns the reference number of the first active subproblem. However, if
+the tree is empty, zero is returned.
 
-If the parameter $p$ is not zero, it must specify the reference number
-of some active subproblem, in which case the routine returns the
-reference number of the next active subproblem. However, if there is
-no next active subproblem in the list, zero is returned.
+Otherwise, the routine returns the reference number of the next active
+subproblem. However, if there is no next active subproblem in the list,
+zero is returned.
 
 All subproblems in the active list are in local bound order, i.e.
 subproblem $A$ precedes subproblem $B$ if $A$ has better local bound
@@ -835,14 +837,14 @@ subproblem}
 
 \returns
 
-If the parameter $p$ is zero, the routine \verb|glp_ios_prev_node|
+If the parameter $p$ is zero or the subproblem with reference number $p$
+is not a member of the active list, the routine \verb|glp_ios_prev_node|
 returns the reference number of the last active subproblem. However, if
 the tree is empty, zero is returned.
 
-If the parameter $p$ is not zero, it must specify the reference number
-of some active subproblem, in which case the routine returns the
-reference number of the previous active subproblem. However, if there
-is no previous active subproblem in the list, zero is returned.
+Otherwise, the routine returns the reference number of the previous
+active subproblem. However, if there is no previous active subproblem in
+the list, zero is returned.
 
 All subproblems in the active list are in local bound order, i.e.
 subproblem $A$ precedes subproblem $B$ if $A$ has better local bound

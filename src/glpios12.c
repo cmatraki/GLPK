@@ -90,7 +90,7 @@ static int most_feas(glp_tree *T)
       int p;
       double best;
       p = 0, best = DBL_MAX;
-      for (node = T->head; node != NULL; node = node->next)
+      for (node = T->head; node != NULL; node = ios_next_node(T, node))
       {  xassert(node->up != NULL);
          if (best > node->up->ii_sum)
             p = node->p, best = node->up->ii_sum;
@@ -115,7 +115,7 @@ static int best_proj(glp_tree *T)
       /* nothing has been selected so far */
       p = 0, best = DBL_MAX;
       /* walk through the list of active subproblems */
-      for (node = T->head; node != NULL; node = node->next)
+      for (node = T->head; node != NULL; node = ios_next_node(T, node))
       {  xassert(node->up != NULL);
          /* obj estimates optimal objective value if the sum of integer
             infeasibilities were zero */
@@ -137,7 +137,8 @@ static int best_node(glp_tree *T)
       eps = 1e-10 * (1.0 + fabs(bound));
       switch (T->mip->dir)
       {  case GLP_MIN:
-            for (node = best->next; node != NULL; node = node->next)
+            node = ios_next_node(T, best);
+            for (; node != NULL; node = ios_next_node(T, node))
             {  if (node->bound > bound + eps) break;
                xassert(node->up != NULL);
                if (best->up->ii_sum > node->up->ii_sum) best = node;
@@ -146,7 +147,8 @@ static int best_node(glp_tree *T)
             }
             break;
          case GLP_MAX:
-            for (node = best->next; node != NULL; node = node->next)
+            node = ios_next_node(T, best);
+            for (; node != NULL; node = ios_next_node(T, node))
             {  if (node->bound < bound + eps) break;
                xassert(node->up != NULL);
                if (best->up->ii_sum > node->up->ii_sum) best = node;
@@ -167,7 +169,7 @@ static int dfs(glp_tree *T)
       int p;
       int level;
       p = 0, level = -1;
-      for (node = T->head; node != NULL; node = node->next)
+      for (node = T->head; node != NULL; node = ios_next_node(T, node))
       {  xassert(node->up != NULL);
          if (level < node->level)
             p = node->p, level = node->level;
@@ -181,7 +183,7 @@ static int bfs(glp_tree *T)
       int p;
       int level;
       p = 0, level = INT_MAX;
-      for (node = T->head; node != NULL; node = node->next)
+      for (node = T->head; node != NULL; node = ios_next_node(T, node))
       {  xassert(node->up != NULL);
          if (level > node->level)
             p = node->p, level = node->level;

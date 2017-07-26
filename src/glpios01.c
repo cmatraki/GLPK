@@ -25,6 +25,7 @@
 #include "env.h"
 #include "glpios.h"
 #include "misc.h"
+#include "avl.h"
 
 static int lpx_eval_tab_row(glp_prob *lp, int k, int ind[],
       double val[])
@@ -64,6 +65,18 @@ static int lpx_dual_ratio_test(glp_prob *lp, int len, const int ind[],
 *  The routine returns a pointer to the tree created. */
 
 static IOSNPD *new_node(glp_tree *tree, IOSNPD *parent);
+
+static int min_cmp(void *info, const void *key1, const void *key2)
+{     double tmp;
+      tmp = *(double *)key1 - *(double *)key2;
+      return (tmp > 0.0) ? 1 : (tmp < 0.0) ? -1 : 0;
+}
+
+static int max_cmp(void *info, const void *key1, const void *key2)
+{     double tmp;
+      tmp = *(double *)key2 - *(double *)key1;
+      return (tmp > 0.0) ? 1 : (tmp < 0.0) ? -1 : 0;
+}
 
 glp_tree *ios_create_tree(glp_prob *mip, const glp_iocp *parm)
 {     int m = mip->m;
@@ -175,9 +188,16 @@ glp_tree *ios_create_tree(glp_prob *mip, const glp_iocp *parm)
       /*tree->btrack = NULL;*/
       tree->stop = 0;
       tree->obj_step = 0.0;
+      /* create priority queue for the active list */
+      if (mip->dir == GLP_MIN)
+         tree->p_queue = avl_create_tree(min_cmp, NULL);
+      else if (mip->dir == GLP_MAX)
+         tree->p_queue = avl_create_tree(max_cmp, NULL);
+      else
+         xassert(mip != mip);
       /* create the root subproblem, which initially is identical to
          the original MIP */
-      new_node(tree, NULL);
+      ios_insert_node(tree, new_node(tree, NULL));
       return tree;
 }
 
@@ -381,6 +401,7 @@ done:
       /* the specified subproblem becomes current */
       tree->frozen = NULL;
       tree->curr = node;
+      ios_remove_node(tree, tree->curr);
       return;
 }
 
@@ -664,10 +685,6 @@ static void restore_parent(glp_tree *tree)
 *  specified subproblem must be active and must be in the frozen state
 *  (i.e. it must not be the current subproblem).
 *
-*  Each clone, an exact copy of the specified subproblem, becomes a new
-*  active subproblem added to the end of the active list. After cloning
-*  the specified subproblem becomes inactive.
-*
 *  The reference numbers of clone subproblems are stored to locations
 *  ref[1], ..., ref[nnn]. */
 
@@ -744,24 +761,6 @@ static IOSNPD *new_node(glp_tree *tree, IOSNPD *parent)
          memset(node->data, 0, tree->parm->cb_size);
       }
       node->temp = NULL;
-      if (parent == NULL)
-      {  /* creating the root subproblem */
-         node->prev = NULL;
-         node->next = NULL;
-         tree->head = node;
-         tree->tail = node;
-      }
-      else
-      {  /* add the new subproblem after the parent */
-         if (parent->next == NULL)
-            tree->tail = node;
-         else
-            parent->next->prev = node;
-         node->next = parent->next;
-         parent->next = node;
-         node->prev = parent;
-      }
-      tree->a_cnt++;
       tree->n_cnt++;
       tree->t_cnt++;
       /* increase the number of child subproblems */
@@ -787,24 +786,138 @@ void ios_clone_node(glp_tree *tree, int p, int nnn, int ref[])
       xassert(nnn > 0);
       for (k = 1; k <= nnn; k++)
          ref[k] = new_node(tree, node)->p;
-      /* remove the specified subproblem from the active list, because
-         it becomes inactive */
-      if (node->prev == NULL)
-         tree->head = node->next;
-      else
-         node->prev->next = node->next;
-      if (node->next == NULL)
-         tree->tail = node->prev;
-      else
-         node->next->prev = node->prev;
-      node->prev = node->next = NULL;
-      tree->a_cnt--;
       /* clear the sibling pointer pair */
       if (node->sibling != NULL)
       {  node->sibling->sibling = NULL;
          node->sibling = NULL;
       }
       return;
+}
+
+/***********************************************************************
+*  NAME
+*
+*  ios_insert_node - insert node in the active list
+*
+*  SYNOPSIS
+*
+*  #include "glpios.h"
+*  void ios_insert_node(glp_tree *tree, IOSNPD *node);
+*
+*  DESCRIPTION
+*
+*  The routine ios_insert_node inserts the specified subproblem pointed
+*  by node in the priority queue that holds the active list and updates
+*  the head and tail pointers if needed. */
+
+void ios_insert_node(glp_tree *tree, IOSNPD *node)
+{     if (tree->head == NULL)
+      {  tree->head = node;
+         tree->tail = node;
+      }
+      else if (tree->mip->dir == GLP_MIN)
+      {  if (node->bound < tree->head->bound )
+            tree->head = node;
+         if (node->bound > tree->tail->bound )
+            tree->tail = node;
+      }
+      else if (tree->mip->dir == GLP_MAX)
+      {  if (node->bound > tree->head->bound )
+            tree->head = node;
+         if (node->bound < tree->tail->bound )
+            tree->tail = node;
+      }
+      else
+         xassert(tree->mip != tree->mip);
+      node->avlnode = avl_insert_node(tree->p_queue, &node->bound);
+      avl_set_node_link(node->avlnode, node);
+      /* in the case of equality we may need to adjust head and tail */
+      if (node != tree->head && node->bound == tree->head->bound)
+      {  IOSNPD *head = ios_prev_node(tree, tree->head);
+         if (head != NULL)
+            tree->head = head;
+      }
+      if (node != tree->tail && node->bound == tree->tail->bound)
+      {  IOSNPD *tail = ios_next_node(tree, tree->tail);
+         if (tail != NULL)
+            tree->tail = tail;
+      }
+      tree->a_cnt++;
+}
+
+/***********************************************************************
+*  NAME
+*
+*  ios_remove_node - remove node from the active list
+*
+*  SYNOPSIS
+*
+*  #include "glpios.h"
+*  void ios_remove_node(glp_tree *tree, IOSNPD *node);
+*
+*  DESCRIPTION
+*
+*  The routine ios_remove_node removes the specified subproblem pointed
+*  by node from the priority queue that holds the active list and
+*  updates the head and tail pointers if needed. */
+
+void ios_remove_node(glp_tree *tree, IOSNPD *node)
+{     if (node->avlnode == NULL) return;
+      if (node == tree->head)
+         tree->head = ios_next_node(tree, node);
+      if (node == tree->tail)
+         tree->tail = ios_prev_node(tree, node);
+      avl_delete_node(tree->p_queue, node->avlnode);
+      node->avlnode = NULL;
+      tree->a_cnt--;
+}
+
+/***********************************************************************
+*  NAME
+*
+*  ios_next_node - find next node in the active list
+*
+*  SYNOPSIS
+*
+*  #include "glpios.h"
+*  IOSNPD *ios_next_node(glp_tree *tree, IOSNPD *node);
+*
+*  DESCRIPTION
+*
+*  The routine ios_next_node finds the subproblem following the
+*  specified subproblem pointed by node in the active list.
+*
+*  RETURNS
+*
+*  The routine returns a pointer to the next node or NULL. */
+
+IOSNPD *ios_next_node(glp_tree *tree, IOSNPD *node)
+{     AVLNODE *a = avl_find_next_node(tree->p_queue, node->avlnode);
+      return a == NULL ? NULL : avl_get_node_link(a);
+}
+
+/***********************************************************************
+*  NAME
+*
+*  ios_prev_node - find previous node in the active list
+*
+*  SYNOPSIS
+*
+*  #include "glpios.h"
+*  IOSNPD *ios_prev_node(glp_tree *tree, IOSNPD *node);
+*
+*  DESCRIPTION
+*
+*  The routine ios_prev_node finds the subproblem preceding the
+*  specified subproblem pointed by node in the active list.
+*
+*  RETURNS
+*
+*  The routine returns a pointer to the previous node or NULL. */
+
+IOSNPD *ios_prev_node(glp_tree *tree, IOSNPD *node)
+{     AVLNODE *a = avl_find_prev_node(tree->p_queue, node->avlnode);
+      return a == NULL ? NULL : avl_get_node_link(a);
 }
 
 /***********************************************************************
@@ -851,16 +964,7 @@ void ios_delete_node(glp_tree *tree, int p)
       }
       /* remove the specified subproblem from the active list, because
          it is gone from the tree */
-      if (node->prev == NULL)
-         tree->head = node->next;
-      else
-         node->prev->next = node->next;
-      if (node->next == NULL)
-         tree->tail = node->prev;
-      else
-         node->next->prev = node->prev;
-      node->prev = node->next = NULL;
-      tree->a_cnt--;
+      ios_remove_node(tree, node);
 loop: /* recursive deletion starts here */
       /* delete the bound change list */
       {  IOSBND *b;
@@ -1008,6 +1112,7 @@ void ios_delete_tree(glp_tree *tree)
       xfree(tree->j_ref);
 #endif
       if (tree->pcost != NULL) ios_pcost_free(tree);
+      if (tree->p_queue != NULL) avl_delete_tree(tree->p_queue);
       xfree(tree->iwrk);
       xfree(tree->dwrk);
 #if 0
@@ -1355,8 +1460,21 @@ int ios_is_hopeful(glp_tree *tree, double bound)
 *  for the best node. However, if the tree is empty, it returns zero. */
 
 int ios_best_node(glp_tree *tree)
-{     /* the active list is sorted so the best node is first */
+{     /* the nest node is either tree->head or tree->curr */
       IOSNPD *best = tree->head;
+      if (best == NULL) best = tree->curr;
+      else if (tree->curr != NULL)
+      {  if (tree->mip->dir == GLP_MIN)
+         {  if (tree->curr->bound < best->bound)
+                best = tree->curr;
+         }
+         else if (tree->mip->dir == GLP_MAX)
+         {  if (tree->curr->bound > best->bound)
+                best = tree->curr;
+         }
+         else
+            xassert(tree->mip != tree->mip);
+      }
       return best == NULL ? 0 : best->p;
 }
 

@@ -192,7 +192,7 @@ void *avl_get_node_link(AVLNODE *node)
       return node->link;
 }
 
-static AVLNODE *find_next_node(AVL *tree, AVLNODE *node)
+AVLNODE *avl_find_next_node(AVL *tree, AVLNODE *node)
 {     /* find next node in AVL tree */
       AVLNODE *p, *q;
       if (tree->root == NULL) return NULL;
@@ -218,6 +218,32 @@ static AVLNODE *find_next_node(AVL *tree, AVLNODE *node)
       return q;
 }
 
+AVLNODE *avl_find_prev_node(AVL *tree, AVLNODE *node)
+{     /* find previous node in AVL tree */
+      AVLNODE *p, *q;
+      if (tree->root == NULL) return NULL;
+      p = node;
+      q = (p == NULL ? tree->root : p->left);
+      if (q == NULL)
+      {  /* go upstairs from the right subtree */
+         for (;;)
+         {  q = p->up;
+            if (q == NULL) break;
+            if (p->flag == 1) break;
+            p = q;
+         }
+      }
+      else
+      {  /* go downstairs into the left subtree */
+         for (;;)
+         {  p = q->right;
+            if (p == NULL) break;
+            q = p;
+         }
+      }
+      return q;
+}
+
 void avl_delete_node(AVL *tree, AVLNODE *node)
 {     /* delete specified node from AVL tree */
       AVLNODE *f, *p, *q, *r, *s, *x, *y;
@@ -228,7 +254,7 @@ void avl_delete_node(AVL *tree, AVLNODE *node)
          of which is always empty */
       if (p->left == NULL || p->right == NULL) goto skip;
       f = p->up; q = p->left;
-      r = find_next_node(tree, p); s = r->right;
+      r = avl_find_next_node(tree, p); s = r->right;
       if (p->right == r)
       {  if (f == NULL)
             tree->root = r;

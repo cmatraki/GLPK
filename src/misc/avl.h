@@ -60,6 +60,14 @@ int avl_get_node_type(AVLNODE *node);
 void *avl_get_node_link(AVLNODE *node);
 /* retrieve the link field of specified node */
 
+#define avl_find_next_node _glp_avl_find_next_node
+AVLNODE *avl_find_next_node(AVL *tree, AVLNODE *node);
+/* find next node in AVL tree */
+
+#define avl_find_prev_node _glp_avl_find_prev_node
+AVLNODE *avl_find_prev_node(AVL *tree, AVLNODE *node);
+/* find previous node in AVL tree */
+
 #define avl_delete_node _glp_avl_delete_node
 void avl_delete_node(AVL *tree, AVLNODE *node);
 /* delete specified node from AVL tree */

@@ -142,14 +142,14 @@ int glp_ios_curr_node(glp_tree *tree)
 *
 *  RETURNS
 *
-*  If the parameter p is zero, the routine glp_ios_next_node returns
-*  the reference number of the first active subproblem. However, if the
-*  tree is empty, zero is returned.
+*  If the parameter p is zero or the subproblem with reference number p
+*  is not a member of the active list, the routine glp_ios_next_node
+*  returns the reference number of the first active subproblem. However,
+*  if the tree is empty, zero is returned.
 *
-*  If the parameter p is not zero, it must specify the reference number
-*  of some active subproblem, in which case the routine returns the
-*  reference number of the next active subproblem. However, if there is
-*  no next active subproblem in the list, zero is returned.
+*  Otherwise, the routine returns the reference number of the next
+*  active subproblem. However, if there is no next active subproblem in
+*  the list, zero is returned.
 *
 *  All subproblems in the active list are in local bound order, i.e.
 *  subproblem A precedes subproblem B if A has better local bound
@@ -173,7 +173,7 @@ err:        xerror("glp_ios_next_node: p = %d; invalid subproblem refer"
             xerror("glp_ios_next_node: p = %d; subproblem not in the ac"
                "tive list\n", p);
          /* obtain pointer to the next active subproblem */
-         node = node->next;
+         node = ios_next_node(tree, node);
       }
       /* return the reference number */
       return node == NULL ? 0 : node->p;
@@ -190,14 +190,14 @@ err:        xerror("glp_ios_next_node: p = %d; invalid subproblem refer"
 *
 *  RETURNS
 *
-*  If the parameter p is zero, the routine glp_ios_prev_node returns
-*  the reference number of the last active subproblem. However, if the
-*  tree is empty, zero is returned.
+*  If the parameter p is zero or the subproblem with reference number p
+*  is not a member of the active list, the routine glp_ios_next_node
+*  returns the reference number of the last active subproblem. However,
+*  if the tree is empty, zero is returned.
 *
-*  If the parameter p is not zero, it must specify the reference number
-*  of some active subproblem, in which case the routine returns the
-*  reference number of the previous active subproblem. However, if there
-*  is no previous active subproblem in the list, zero is returned.
+*  Otherwise, the routine returns the reference number of the previous
+*  active subproblem. However, if there is no previous active subproblem
+*  in the list, zero is returned.
 *
 *  All subproblems in the active list are in local bound order, i.e.
 *  subproblem A precedes subproblem B if A has better local bound
@@ -221,7 +221,7 @@ err:        xerror("glp_ios_prev_node: p = %d; invalid subproblem refer"
             xerror("glp_ios_prev_node: p = %d; subproblem not in the ac"
                "tive list\n", p);
          /* obtain pointer to the previous active subproblem */
-         node = node->prev;
+         node = ios_prev_node(tree, node);;
       }
       /* return the reference number */
       return node == NULL ? 0 : node->p;
@@ -575,7 +575,8 @@ void glp_ios_branch_upon(glp_tree *tree, int j, int sel)
 *  The routine glp_ios_select_node can be called from the user-defined
 *  callback routine in response to the reason GLP_ISELECT to select an
 *  active subproblem, whose reference number is p. The search will be
-*  continued from the subproblem selected. */
+*  continued from the subproblem selected and the subproblem will be
+*  removed from the active list. */
 
 void glp_ios_select_node(glp_tree *tree, int p)
 {     IOSNPD *node;

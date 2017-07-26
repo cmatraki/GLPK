@@ -341,47 +341,6 @@ static void fix_by_red_cost(glp_tree *T)
 }
 
 /***********************************************************************
-*  sort_node - move node in correct position in active list
-*
-*  This routine maintains the active list in local bound order. The list
-*  head is always the best node and can be quickly retrieved. Should be
-*  called every time the node bound changes */
-
-static void sort_node(glp_tree *T, IOSNPD *node)
-{     glp_prob *mip = T->mip;
-      IOSNPD *ptr;
-      if (mip->dir == GLP_MIN)
-      {  for (ptr = node->next; ptr != NULL; ptr = ptr->next)
-            if (ptr->bound > node->bound) break;
-      }
-      else if (mip->dir == GLP_MAX)
-      {  for (ptr = node->next; ptr != NULL; ptr = ptr->next)
-            if (ptr->bound < node->bound) break;
-      }
-      else
-         xassert(mip != mip);
-      if (ptr != node->next)
-      {  if (node->prev == NULL)
-            T->head = node->next;
-         else
-            node->prev->next = node->next;
-         /* this cannot be the tail node */
-         node->next->prev = node->prev;
-         if (ptr == NULL)
-         {  node->prev = T->tail;
-            T->tail = node;
-         }
-         else
-         {  node->prev = ptr->prev;
-            ptr->prev = node;
-         }
-         /* after moving there is always a previous node */
-         node->prev->next = node;
-         node->next = ptr;
-      }
-}
-
-/***********************************************************************
 *  branch_on - perform branching on specified variable
 *
 *  This routine performs branching on j-th column (structural variable)
@@ -409,7 +368,7 @@ static void sort_node(glp_tree *T, IOSNPD *node)
 
 static int branch_on(glp_tree *T, int j, int next)
 {     glp_prob *mip = T->mip;
-      IOSNPD *node, *node1, *node2;
+      IOSNPD *node;
       int m = mip->m;
       int n = mip->n;
       int type, dn_type, up_type, dn_bad, up_bad, p, ret, clone[1+2];
@@ -471,15 +430,11 @@ static int branch_on(glp_tree *T, int j, int next)
          T->curr->lp_obj = dn_lp;
          if (mip->dir == GLP_MIN)
          {  if (T->curr->bound < dn_bnd)
-            {  T->curr->bound = dn_bnd;
-               sort_node(T,T->curr);
-            }
+                T->curr->bound = dn_bnd;
          }
          else if (mip->dir == GLP_MAX)
          {  if (T->curr->bound > dn_bnd)
-            {  T->curr->bound = dn_bnd;
-               sort_node(T,T->curr);
-            }
+                T->curr->bound = dn_bnd;
          }
          else
             xassert(mip != mip);
@@ -493,15 +448,11 @@ static int branch_on(glp_tree *T, int j, int next)
          T->curr->lp_obj = up_lp;
          if (mip->dir == GLP_MIN)
          {  if (T->curr->bound < up_bnd)
-            {  T->curr->bound = up_bnd;
-               sort_node(T,T->curr);
-            }
+                T->curr->bound = up_bnd;
          }
          else if (mip->dir == GLP_MAX)
          {  if (T->curr->bound > up_bnd)
-            {  T->curr->bound = up_bnd;
-               sort_node(T,T->curr);
-            }
+                T->curr->bound = up_bnd;
          }
          else
             xassert(mip != mip);
@@ -548,6 +499,7 @@ static int branch_on(glp_tree *T, int j, int next)
       }
       else
          xassert(mip != mip);
+      ios_insert_node(T, node);
       /* set new lower bound of j-th column in the up-branch */
       node = T->slot[clone[2]].node;
       node->sibling = T->slot[clone[1]].node;
@@ -571,45 +523,7 @@ static int branch_on(glp_tree *T, int j, int next)
       }
       else
          xassert(mip != mip);
-      /* move both nodes to correct position */
-      node1 = T->slot[clone[1]].node;
-      node2 = T->slot[clone[2]].node;
-      if (mip->dir == GLP_MIN)
-      {  if (node1->bound > node2->bound)
-         {  node = node1;
-            node1 = node2;
-            node2 = node;
-         }
-      }
-      else if (mip->dir == GLP_MAX)
-      {  if (node1->bound < node2->bound)
-         {  node = node1;
-            node1 = node2;
-            node2 = node;
-         }
-      }
-      else
-         xassert(mip != mip);
-      /* temporarily remove node2 from the list ... */
-      if (node2->prev == NULL)
-         T->head = node2->next;
-      else
-         node2->prev->next = node2->next;
-      if (node2->next == NULL)
-         T->tail = node2->prev;
-      else
-         node2->next->prev = node2->prev;
-      /* ... sort node1 ... */
-      sort_node(T, node1);
-      /* ... and put node2 after node1 before sorting */
-      node2->next = node1->next;
-      node2->prev = node1;
-      if (node1->next == NULL)
-         T->tail = node2;
-      else
-         node1->next->prev = node2;
-      node1->next = node2;
-      sort_node(T, node2);
+      ios_insert_node(T, node);
       /* suggest the subproblem to be solved next */
       xassert(T->child == 0);
       if (next == GLP_NO_BRNCH)
@@ -634,7 +548,7 @@ done: return ret;
 *  in turn, involves pruning the corresponding branch of the tree. */
 
 static void cleanup_the_tree(glp_tree *T)
-{     IOSNPD *node, *next_node;
+{     IOSNPD *node;
       int count = 0;
       /* the global bound must exist */
       xassert(T->mip->mip_stat == GLP_FEAS);
@@ -1106,7 +1020,7 @@ loop: /* main loop starts here */
       }
       else if (T->a_cnt == 1)
       {  /* the only active subproblem exists, so select it */
-         xassert(T->head->next == NULL);
+         xassert(ios_next_node(T, T->head) == NULL);
          T->next_p = T->head->p;
       }
       else if (T->child != 0)
@@ -1326,15 +1240,11 @@ more: /* minor loop starts here */
          bound = ios_round_bound(T, bound);
          if (T->mip->dir == GLP_MIN)
          {  if (T->curr->bound < bound)
-            {  T->curr->bound = bound;
-               sort_node(T,T->curr);
-            }
+               T->curr->bound = bound;
          }
          else if (T->mip->dir == GLP_MAX)
          {  if (T->curr->bound > bound)
-            {  T->curr->bound = bound;
-               sort_node(T,T->curr);
-            }
+               T->curr->bound = bound;
          }
          else
             xassert(T->mip != T->mip);

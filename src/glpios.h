@@ -79,15 +79,15 @@ struct glp_tree
          or is free; all free slots are linked into single linked list;
          slot[1] always contains a pointer to the root node (it is free
          only if the tree is empty) */
+      void *p_queue;
+      /* the active list is a priority queue in local bound order; head
+         and tail pointers are maintained as well for quick access */
       IOSNPD *head;
       /* pointer to the head of the active list */
       IOSNPD *tail;
       /* pointer to the tail of the active list */
-      /* the active list is a doubly linked list of active subproblems
-         which correspond to leaves of the tree; all subproblems in the
-         active list are ordered in local bound order */
       int a_cnt;
-      /* current number of active nodes (including the current one) */
+      /* current number of active nodes (excluding the current one) */
       int n_cnt;
       /* current number of all (active and inactive) nodes */
       int t_cnt;
@@ -316,10 +316,8 @@ struct IOSNPD
       /* pointer to the application-specific data */
       IOSNPD *temp;
       /* working pointer used by some routines */
-      IOSNPD *prev;
-      /* pointer to previous subproblem in the active list */
-      IOSNPD *next;
-      /* pointer to next subproblem in the active list */
+      void *avlnode;
+      /* pointer to node in priority queue */
 };
 
 struct IOSBND
@@ -434,6 +432,22 @@ void ios_freeze_node(glp_tree *tree);
 #define ios_clone_node _glp_ios_clone_node
 void ios_clone_node(glp_tree *tree, int p, int nnn, int ref[]);
 /* clone specified subproblem */
+
+#define ios_insert_node _glp_ios_insert_node
+void ios_insert_node(glp_tree *tree, IOSNPD *node);
+/* insert node in the active list */
+
+#define ios_remove_node _glp_ios_remove_node
+void ios_remove_node(glp_tree *tree, IOSNPD *node);
+/* remove node from the active list */
+
+#define ios_next_node _glp_ios_next_node
+IOSNPD *ios_next_node(glp_tree *tree, IOSNPD *node);
+/* find next node in the active list */
+
+#define ios_prev_node _glp_ios_prev_node
+IOSNPD *ios_prev_node(glp_tree *tree, IOSNPD *node);
+/* find previous node in the active list */
 
 #define ios_delete_node _glp_ios_delete_node
 void ios_delete_node(glp_tree *tree, int p);
