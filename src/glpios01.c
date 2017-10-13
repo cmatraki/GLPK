@@ -946,17 +946,15 @@ void ios_delete_node(glp_tree *tree, int p)
       xassert(1 <= p && p <= tree->nslots);
       node = tree->slot[p].node;
       xassert(node != NULL);
+      xassert(tree->frozen == NULL);
       /* the specified subproblem must be active */
       xassert(node->count == 0);
       if (tree->curr == node)
-      {  /* semi-freeze subproblem so restore_root() is called */
-         xassert(tree->frozen == NULL);
+      {  /* semi-freeze subproblem and call restore_root() */
          tree->frozen = tree->curr;
          tree->curr = NULL;
-      }
-      /* restore root subproblem if necessary */
-      if (node == tree->frozen)
          restore_root(tree);
+      }
       /* clear the sibling pointer pair */
       if (node->sibling != NULL)
       {  node->sibling->sibling = NULL;
