@@ -560,6 +560,7 @@ void ios_freeze_node(glp_tree *tree)
       /* the current subproblem has been frozen */
       tree->frozen = tree->curr;
       tree->curr = NULL;
+      tree->a_cnt--;
       return;
 }
 
@@ -869,7 +870,6 @@ void ios_remove_node(glp_tree *tree, IOSNPD *node)
          tree->tail = ios_prev_node(tree, node);
       avl_delete_node(tree->p_queue, node->avlnode);
       node->avlnode = NULL;
-      tree->a_cnt--;
 }
 
 /***********************************************************************
@@ -965,6 +965,7 @@ void ios_delete_node(glp_tree *tree, int p)
       /* remove the specified subproblem from the active list, because
          it is gone from the tree */
       ios_remove_node(tree, node);
+      tree->a_cnt--;
 loop: /* recursive deletion starts here */
       /* delete the bound change list */
       {  IOSBND *b;
